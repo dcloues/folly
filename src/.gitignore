@@ -17,7 +17,7 @@ Makefile
 src/Makefile
 Makefile.in
 src/Makefile.in
-
 configure.scan
 *.o
 .deps/*
+parsify
