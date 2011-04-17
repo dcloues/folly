@@ -1,3 +1,3 @@
-bin_PROGRAMS = solevore
-solevore_SOURCES = main.c
+bin_PROGRAMS = parsify
+parsify_SOURCES = main.c
 LDADD = -lncurses

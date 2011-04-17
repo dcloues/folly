@@ -19,7 +19,5 @@ Makefile.in
 src/Makefile.in
 
 configure.scan
-depcomp
-missing
-.deps/**
-stamp-h1
+*.o
+.deps/*
