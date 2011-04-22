@@ -2,6 +2,7 @@
 #include <string.h>
 #include <stdio.h>
 #include "lexer.h"
+#include "buffer.h"
 
 size_t token_string_size(token *token);
 void read_matching(FILE *fh, char *buf, int *count, const int max, bool (*matcher)(char));
