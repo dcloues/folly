@@ -16,6 +16,13 @@ bool is_identifier(const char c, buffer *buffer);
 bool is_whitespace(const char c);
 bool is_string_incomplete(const char c, buffer *buf);
 
+static rule rules[] = {
+	{is_whitespace, NULL},
+	{is_numeric, get_token_numeric},
+	{is_string_delim, get_token_string},
+	{is_identifier, get_token_identifier}
+};
+
 token *token_create(token_type type)
 {
 	token *token = malloc(sizeof(token));
@@ -89,21 +96,24 @@ token* get_next_token(FILE *fh)
 		}
 
 		ungetc(c, fh);
-		if (is_numeric(c, NULL))
+		int i = 0;
+		rule *r = NULL;
+		bool matched = false;
+		token *token = NULL;
+		for (; i < sizeof(rules); i++)
 		{
-			return get_token_numeric(fh);
+			r = rules + i;
+			if (r->test_input(c, NULL))
+			{
+				matched = true;
+				break;
+			}
 		}
-		else if (is_string_delim(c))
-		{
-			return get_token_string(fh);
-		}
-		else if (is_identifier(c, NULL))
-		{
-			return get_token_identifier(fh);
-		}
-		else
-		{
-			printf("don't know how to handle: '%c' (%d)", c, ch);
+
+		if (matched) {
+			return r->read_token(fh);
+		} else {
+			printf("Error: unexpected %c' (%d)", c, ch);
 			exit(1);
 		}
 	}
