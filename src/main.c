@@ -5,13 +5,15 @@
 
 int main(int argc, char **argv)
 {
-	/*token *tok = NULL;*/
-	/*while (tok = get_next_token(stdin)) {*/
-		/*char *str = token_to_string(tok);*/
-		/*puts(str);*/
-		/*free(str);*/
-	/*}*/
+	token *tok = NULL;
+	FILE *fh = fopen(argv[1], "r");
+	while (tok = get_next_token(fh)) {
+		char *str = token_to_string(tok);
+		puts(str);
+		free(str);
+	}
 
+	/*
 	token t;
 	t.type = number;
 	t.value.number = 5;
@@ -26,6 +28,7 @@ int main(int argc, char **argv)
 	printf("Token: %s\n", str);
 	free(str);
 	str = NULL;
+	*/
 
 	return 0;
 }
