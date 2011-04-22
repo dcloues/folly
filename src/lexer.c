@@ -7,17 +7,17 @@
 
 size_t token_string_size(token *token);
 void read_matching(FILE *fh, buffer *buf, bool (*matcher)(char, buffer*));
-token *get_token_numeric(FILE *fh);
-token *get_token_string(FILE *fh);
-token *get_token_identifier(FILE *fh);
+token *get_token_numeric(FILE *fh, buffer *buf);
+token *get_token_string(FILE *fh, buffer *buf);
+token *get_token_identifier(FILE *fh, buffer *buf);
 bool is_numeric(const char c, buffer *buffer);
-bool is_string_delim(const char c);
+bool is_string_delim(const char c, buffer *buffer);
 bool is_identifier(const char c, buffer *buffer);
-bool is_whitespace(const char c);
+bool is_whitespace(const char c, buffer *buffer);
 bool is_string_incomplete(const char c, buffer *buf);
 
 static rule rules[] = {
-	{is_whitespace, NULL},
+	{is_whitespace},
 	{is_numeric, get_token_numeric},
 	{is_string_delim, get_token_string},
 	{is_identifier, get_token_identifier}
@@ -90,12 +90,6 @@ token* get_next_token(FILE *fh)
 		}
 
 		char c = (char) ch;
-		if (is_whitespace(c))
-		{
-			continue;
-		}
-
-		ungetc(c, fh);
 		int i = 0;
 		rule *r = NULL;
 		bool matched = false;
@@ -110,47 +104,50 @@ token* get_next_token(FILE *fh)
 			}
 		}
 
-		if (matched) {
-			return r->read_token(fh);
-		} else {
+		if (!matched)
+		{
 			printf("Error: unexpected %c' (%d)", c, ch);
 			exit(1);
+		}
+		else if (r->read_token)
+		{
+			// if no read op, the rule produces no output and should be skipped
+			buffer *buf = buffer_create(512);
+			buffer_append_char(buf, c);
+			token = r->read_token(fh, buf);
+			buffer_destroy(buf);
+
+			return token;
 		}
 	}
 }
 
-token *get_token_numeric(FILE *fh)
+token *get_token_numeric(FILE *fh, buffer *buf)
 {
-	buffer *buf = buffer_create(512);
 	read_matching(fh, buf, is_numeric);
 	int value = atoi(buf->data);
 	token *token = malloc(sizeof(token));
 	token->type = number;
 	token->value.number = value;
-	buffer_destroy(buf);
 	return token;
 }
 
-token *get_token_string(FILE *fh)
+token *get_token_string(FILE *fh, buffer *buf)
 {
-	buffer *buf = buffer_create(512);
 	read_matching(fh, buf, is_string_incomplete);
 	char *str = buffer_substring(buf, 1, buf->len - 2);
-	buffer_destroy(buf);
 
 	token *token = token_create(string);
 	token->value.string = str;
 	return token;
 }
 
-token *get_token_identifier(FILE *fh)
+token *get_token_identifier(FILE *fh, buffer *buf)
 {
-	buffer *buf = buffer_create(512);
 	read_matching(fh, buf, is_identifier);
 	token *token = token_create(identifier);
 	token->value.string = buffer_to_string(buf);
 
-	buffer_destroy(buf);
 	return token;
 }
 
@@ -177,7 +174,7 @@ bool is_numeric(const char c, buffer *buf)
 	return c >= '0' && c <= '9';
 }
 
-bool is_string_delim(const char c)
+bool is_string_delim(const char c, buffer *buf)
 {
 	return c == '\'' || c == '"';
 }
@@ -192,7 +189,7 @@ bool is_string_incomplete(const char c, buffer *buf)
 	return !(buffer_peek(buf) == buf->data[0] && buf->data[len-2] != '\\');
 }
 
-bool is_whitespace(const char c)
+bool is_whitespace(const char c, buffer *buf)
 {
 	static char ws[] = {' ', '\t', '\n', '\r'};
 	int i = sizeof(ws);

@@ -15,7 +15,7 @@ typedef struct {
 
 typedef struct {
 	bool (*test_input)(char, buffer *);
-	token *(*read_token)(FILE *fh);
+	token *(*read_token)(FILE *fh, buffer *);
 } rule;
 
 const char* token_type_string(token *token);
