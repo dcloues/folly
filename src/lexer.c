@@ -1,3 +1,4 @@
+#include <ctype.h>
 #include <stdlib.h>
 #include <string.h>
 #include <stdio.h>
@@ -8,8 +9,10 @@ size_t token_string_size(token *token);
 void read_matching(FILE *fh, buffer *buf, bool (*matcher)(char, buffer*));
 token *get_token_numeric(FILE *fh);
 token *get_token_string(FILE *fh);
+token *get_token_identifier(FILE *fh);
 bool is_numeric(const char c, buffer *buffer);
 bool is_string_delim(const char c);
+bool is_identifier(const char c, buffer *buffer);
 bool is_whitespace(const char c);
 bool is_string_incomplete(const char c, buffer *buf);
 
@@ -94,6 +97,10 @@ token* get_next_token(FILE *fh)
 		{
 			return get_token_string(fh);
 		}
+		else if (is_identifier(c, NULL))
+		{
+			return get_token_identifier(fh);
+		}
 		else
 		{
 			printf("don't know how to handle: '%c' (%d)", c, ch);
@@ -123,6 +130,17 @@ token *get_token_string(FILE *fh)
 
 	token *token = token_create(string);
 	token->value.string = str;
+	return token;
+}
+
+token *get_token_identifier(FILE *fh)
+{
+	buffer *buf = buffer_create(512);
+	read_matching(fh, buf, is_identifier);
+	token *token = token_create(identifier);
+	token->value.string = buffer_to_string(buf);
+
+	buffer_destroy(buf);
 	return token;
 }
 
@@ -175,3 +193,9 @@ bool is_whitespace(const char c)
 	}
 	return false;
 }
+
+bool is_identifier(const char c, buffer *buf)
+{
+	return isalnum(c) || ispunct(c);
+}
+
