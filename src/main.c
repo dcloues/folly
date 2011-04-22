@@ -2,33 +2,24 @@
 #include <stdlib.h>
 #include <unistd.h>
 #include "lexer.h"
+#include "linked_list.h"
 
 int main(int argc, char **argv)
 {
 	token *tok = NULL;
 	FILE *fh = fopen(argv[1], "r");
+	linked_list *tokens = ll_create();
 	while (tok = get_next_token(fh)) {
-		char *str = token_to_string(tok);
-		puts(str);
-		free(str);
+		ll_insert_tail(tokens, tok);
 	}
 
-	/*
-	token t;
-	t.type = number;
-	t.value.number = 5;
-	char *str = token_to_string(&t);
-	printf("Token: %s\n", str);
-	free(str);
-	str = NULL;
-
-	t.type = string;
-	t.value.string = "La la la, this is a string";
-	str = token_to_string(&t);
-	printf("Token: %s\n", str);
-	free(str);
-	str = NULL;
-	*/
+	ll_node *node = tokens->head;
+	while (node) {
+		char *str = token_to_string(node->data);
+		puts(str);
+		free(str);
+		node = node->next;
+	}
 
 	return 0;
 }
