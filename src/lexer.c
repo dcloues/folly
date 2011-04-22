@@ -12,6 +12,8 @@ token *get_token_numeric(FILE *fh, buffer *buf);
 token *get_token_string(FILE *fh, buffer *buf);
 token *get_token_identifier(FILE *fh, buffer *buf);
 token *get_token_assignment(FILE *fh, buffer *buf);
+token *get_token_list_start(FILE *fh, buffer *buf);
+token *get_token_list_end(FILE *fh, buffer *buf);
 
 bool is_numeric(const char c, buffer *buffer);
 bool is_string_delim(const char c, buffer *buffer);
@@ -19,13 +21,17 @@ bool is_identifier(const char c, buffer *buffer);
 bool is_whitespace(const char c, buffer *buffer);
 bool is_string_incomplete(const char c, buffer *buf);
 bool is_assignment(const char c, buffer *buffer);
+bool is_list_start(const char c, buffer *buffer);
+bool is_list_end(const char c, buffer *buffer);
 
 static rule rules[] = {
 	{is_whitespace},
 	{is_numeric, get_token_numeric},
 	{is_string_delim, get_token_string},
 	{is_identifier, get_token_identifier},
-	{is_assignment, get_token_assignment}
+	{is_assignment, get_token_assignment},
+	{is_list_start, get_token_list_start},
+	{is_list_end, get_token_list_end}
 };
 
 token *token_create(token_type type)
@@ -51,6 +57,10 @@ const char* token_type_string(token *token)
 			return "number";
 		case assignment:
 			return "assignment";
+		case list_start:
+			return "list_start";
+		case list_end:
+			return "list_end";
 		default:
 			return "[unknown]";
 	}
@@ -167,6 +177,16 @@ token *get_token_assignment(FILE *fh, buffer *buf)
 	return token_create(assignment);
 }
 
+token *get_token_list_start(FILE *fh, buffer *buf)
+{
+	return token_create(list_start);
+}
+
+token *get_token_list_end(FILE *fh, buffer *buf)
+{
+	return token_create(list_end);
+}
+
 void read_matching(FILE *fh, buffer *buf, bool (*matcher)(char, buffer*))
 {
 	while (!feof(fh)) {
@@ -219,10 +239,23 @@ bool is_whitespace(const char c, buffer *buf)
 
 inline bool is_identifier(const char c, buffer *buf)
 {
-	return (isalnum(c) || ispunct(c)) && !is_assignment(c, buf);
+	return (isalnum(c) || ispunct(c))
+		&& !is_assignment(c, buf)
+		&& !is_list_start(c, buf)
+		&& !is_list_end(c, buf);
 }
 
 inline bool is_assignment(const char c, buffer *buf)
 {
 	return c == ':';
+}
+
+inline bool is_list_start(const char c, buffer *buf)
+{
+	return c == '(';
+}
+
+inline bool is_list_end(const char c, buffer *buf)
+{
+	return c == ')';
 }
