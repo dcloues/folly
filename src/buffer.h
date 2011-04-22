@@ -15,5 +15,8 @@ void buffer_append_string(buffer *buffer, char *str, int n);
 void buffer_append_char(buffer *buffer, char ch);
 char buffer_peek(buffer *buffer);
 
+char *buffer_to_string(buffer *buffer);
+char *buffer_substring(buffer *buf, int offset, int len);
+
 #endif
 

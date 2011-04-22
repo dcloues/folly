@@ -5,8 +5,25 @@
 #include "buffer.h"
 
 size_t token_string_size(token *token);
-void read_matching(FILE *fh, char *buf, int *count, const int max, bool (*matcher)(char));
+void read_matching(FILE *fh, buffer *buf, bool (*matcher)(char, buffer*));
 token *get_token_numeric(FILE *fh);
+token *get_token_string(FILE *fh);
+bool is_numeric(const char c, buffer *buffer);
+bool is_string_delim(const char c);
+bool is_whitespace(const char c);
+bool is_string_incomplete(const char c, buffer *buf);
+
+token *token_create(token_type type)
+{
+	token *token = malloc(sizeof(token));
+	if (!token) {
+		perror("Unable to allocate memory for token");
+		exit(1);
+	}
+
+	token->type = type;
+	return token;
+}
 
 const char* token_type_string(token *token)
 {
@@ -69,54 +86,82 @@ token* get_next_token(FILE *fh)
 		}
 
 		ungetc(c, fh);
-		if (is_numeric(c))
+		if (is_numeric(c, NULL))
 		{
 			return get_token_numeric(fh);
+		}
+		else if (is_string_delim(c))
+		{
+			return get_token_string(fh);
 		}
 		else
 		{
 			printf("don't know how to handle: '%c' (%d)", c, ch);
+			exit(1);
 		}
 	}
 }
 
 token *get_token_numeric(FILE *fh)
 {
-	char buf[8192];
-	memset(buf,0, sizeof(buf));
-	int count = 0;
-	read_matching(fh, buf, &count, sizeof(buf), is_numeric);
-	int value = atoi(buf);
+	buffer *buf = buffer_create(512);
+	read_matching(fh, buf, is_numeric);
+	int value = atoi(buf->data);
 	token *token = malloc(sizeof(token));
 	token->type = number;
 	token->value.number = value;
+	buffer_destroy(buf);
 	return token;
 }
 
-void read_matching(FILE *fh, char *buf, int *count, int max, bool (*matcher)(char))
+token *get_token_string(FILE *fh)
 {
-	while (!feof(fh) && *count < max) {
+	buffer *buf = buffer_create(512);
+	read_matching(fh, buf, is_string_incomplete);
+	char *str = buffer_substring(buf, 1, buf->len - 2);
+	buffer_destroy(buf);
+
+	token *token = token_create(string);
+	token->value.string = str;
+	return token;
+}
+
+void read_matching(FILE *fh, buffer *buf, bool (*matcher)(char, buffer*))
+{
+	while (!feof(fh)) {
 		int ch = fgetc(fh);
 		char c = (char) ch;
 		if (ch == -1) 
 		{
 			return;
 		}
-		if (matcher(ch)) {
-			buf[*count] = ch;
-			(*count)++;
+		if (matcher(ch, buf)) {
+			buffer_append_char(buf, c);
 		} else {
 			ungetc(ch, fh);
-			buf[*count] = '\0';
-			(*count)++;
 			return;
 		}
 	}
 }
 
-bool is_numeric(const char c)
+bool is_numeric(const char c, buffer *buf)
 {
 	return c >= '0' && c <= '9';
+}
+
+bool is_string_delim(const char c)
+{
+	return c == '\'' || c == '"';
+}
+
+bool is_string_incomplete(const char c, buffer *buf)
+{
+	if (buf->len < 2) {
+		return true;
+	}
+
+	int len = buf->len;
+	return !(buffer_peek(buf) == buf->data[0] && buf->data[len-2] != '\\');
 }
 
 bool is_whitespace(const char c)

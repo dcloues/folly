@@ -39,6 +39,7 @@ void buffer_append_char(buffer *buf, char ch)
 	buffer_ensure_additional_capacity(buf, 1);
 	buf->data[buf->len] = ch;
 	buf->len++;
+	buf->data[buf->len] = '\0';
 }
 
 void buffer_ensure_capacity(buffer *buffer, int new_capacity)
@@ -60,11 +61,32 @@ void buffer_ensure_capacity(buffer *buffer, int new_capacity)
 
 void buffer_ensure_additional_capacity(buffer *buffer, int additional_capacity)
 {
-	buffer_ensure_additional_capacity(buffer, buffer->capacity + additional_capacity);
+	buffer_ensure_capacity(buffer, buffer->len + additional_capacity);
 }
 
 char buffer_peek(buffer *buffer)
 {
-	return buffer->len ? buffer->data[buffer->len-1] : '\0';
+	char val = buffer->len ? buffer->data[buffer->len-1] : '\0';
+	/*printf("buffer_peek: %d chars, last is %c\n", buffer->len, val);*/
+	return val;
 }
 
+char *buffer_to_string(buffer *buffer)
+{
+	char *str = malloc(buffer->len + 1);
+	strncpy(str, buffer->data, buffer->len);
+	return str;
+}
+
+char *buffer_substring(buffer *buf, int offset, int len)
+{
+	if (offset + len > buf->capacity) {
+		perror("Asked for substring outside of buffer bounds");
+		exit(1);
+	}
+	
+	char *str = malloc(len + 1);
+	str[len-1] = '\0';
+	return memcpy(str, buf->data + offset, len);
+	
+}
