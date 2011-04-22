@@ -1,7 +1,7 @@
 #include <stdbool.h>
 #include "buffer.h"
 
-typedef enum { identifier, number, string } token_type;
+typedef enum { identifier, number, string, assignment } token_type;
 
 typedef union {
 	char *string;

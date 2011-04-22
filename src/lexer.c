@@ -7,20 +7,25 @@
 
 size_t token_string_size(token *token);
 void read_matching(FILE *fh, buffer *buf, bool (*matcher)(char, buffer*));
+
 token *get_token_numeric(FILE *fh, buffer *buf);
 token *get_token_string(FILE *fh, buffer *buf);
 token *get_token_identifier(FILE *fh, buffer *buf);
+token *get_token_assignment(FILE *fh, buffer *buf);
+
 bool is_numeric(const char c, buffer *buffer);
 bool is_string_delim(const char c, buffer *buffer);
 bool is_identifier(const char c, buffer *buffer);
 bool is_whitespace(const char c, buffer *buffer);
 bool is_string_incomplete(const char c, buffer *buf);
+bool is_assignment(const char c, buffer *buffer);
 
 static rule rules[] = {
 	{is_whitespace},
 	{is_numeric, get_token_numeric},
 	{is_string_delim, get_token_string},
-	{is_identifier, get_token_identifier}
+	{is_identifier, get_token_identifier},
+	{is_assignment, get_token_assignment}
 };
 
 token *token_create(token_type type)
@@ -44,6 +49,8 @@ const char* token_type_string(token *token)
 			return "string";
 		case number:
 			return "number";
+		case assignment:
+			return "assignment";
 		default:
 			return "[unknown]";
 	}
@@ -63,6 +70,10 @@ char *token_to_string(token *token)
 			break;
 		case number:
 			sprintf(buf, "%s: %d", type, token->value.number);
+			break;
+		default:
+			sprintf(buf, "%s", type);
+			break;
 	}
 	
 	return buf;
@@ -151,6 +162,11 @@ token *get_token_identifier(FILE *fh, buffer *buf)
 	return token;
 }
 
+token *get_token_assignment(FILE *fh, buffer *buf)
+{
+	return token_create(assignment);
+}
+
 void read_matching(FILE *fh, buffer *buf, bool (*matcher)(char, buffer*))
 {
 	while (!feof(fh)) {
@@ -201,8 +217,12 @@ bool is_whitespace(const char c, buffer *buf)
 	return false;
 }
 
-bool is_identifier(const char c, buffer *buf)
+inline bool is_identifier(const char c, buffer *buf)
 {
-	return isalnum(c) || ispunct(c);
+	return (isalnum(c) || ispunct(c)) && !is_assignment(c, buf);
 }
 
+inline bool is_assignment(const char c, buffer *buf)
+{
+	return c == ':';
+}

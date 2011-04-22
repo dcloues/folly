@@ -1,5 +1,5 @@
 123 456 "string" "another string"
 "this is a string with 'quotes' and escaped \" \" double quotes"
-identifier
+identifier: "identifier_value"
 another_identifier
 chain of identifiers
