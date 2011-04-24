@@ -1,5 +1,6 @@
 #ifndef LINKED_LIST_H
 #define LINKED_LIST_H
+
 enum comparison { LT = -1, EQ = 0, GT = 1 };
 
 //typedef comparison (*comparator)(void *, void*);
