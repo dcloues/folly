@@ -14,6 +14,9 @@ token *get_token_identifier(FILE *fh, buffer *buf);
 token *get_token_assignment(FILE *fh, buffer *buf);
 token *get_token_list_start(FILE *fh, buffer *buf);
 token *get_token_list_end(FILE *fh, buffer *buf);
+token *get_token_hash_start(FILE *fh, buffer *buf);
+token *get_token_hash_end(FILE *fh, buffer *buf);
+token *get_token_delim(FILE *fh, buffer *buf);
 
 bool is_numeric(const char c, buffer *buffer);
 bool is_string_delim(const char c, buffer *buffer);
@@ -23,6 +26,9 @@ bool is_string_incomplete(const char c, buffer *buf);
 bool is_assignment(const char c, buffer *buffer);
 bool is_list_start(const char c, buffer *buffer);
 bool is_list_end(const char c, buffer *buffer);
+bool is_hash_start(const char c, buffer *buffer);
+bool is_hash_end(const char c, buffer *buffer);
+bool is_delim(const char c, buffer *buffer);
 
 static rule rules[] = {
 	{is_whitespace},
@@ -31,7 +37,10 @@ static rule rules[] = {
 	{is_identifier, get_token_identifier},
 	{is_assignment, get_token_assignment},
 	{is_list_start, get_token_list_start},
-	{is_list_end, get_token_list_end}
+	{is_list_end, get_token_list_end},
+	{is_hash_start, get_token_hash_start},
+	{is_hash_end, get_token_hash_end},
+	{is_delim, get_token_delim}
 };
 
 token *token_create(token_type type)
@@ -61,6 +70,12 @@ const char* token_type_string(token *token)
 			return "list_start";
 		case list_end:
 			return "list_end";
+		case hash_start:
+			return "hash_start";
+		case hash_end:
+			return "hash_end";
+		case delim:
+			return "delim";
 		default:
 			return "[unknown]";
 	}
@@ -157,6 +172,7 @@ token *get_token_string(FILE *fh, buffer *buf)
 {
 	read_matching(fh, buf, is_string_incomplete);
 	char *str = buffer_substring(buf, 1, buf->len - 2);
+	printf("get_token_string read %d chars: '%s'\n", buf->len-2, str);
 
 	token *token = token_create(string);
 	token->value.string = str;
@@ -185,6 +201,21 @@ token *get_token_list_start(FILE *fh, buffer *buf)
 token *get_token_list_end(FILE *fh, buffer *buf)
 {
 	return token_create(list_end);
+}
+
+token *get_token_hash_start(FILE *fh, buffer *buf)
+{
+	return token_create(hash_start);
+}
+
+token *get_token_hash_end(FILE *fh, buffer *buf)
+{
+	return token_create(hash_end);
+}
+
+token *get_token_delim(FILE *fh, buffer *buf)
+{
+	return token_create(delim);
 }
 
 void read_matching(FILE *fh, buffer *buf, bool (*matcher)(char, buffer*))
@@ -242,7 +273,10 @@ inline bool is_identifier(const char c, buffer *buf)
 	return (isalnum(c) || ispunct(c))
 		&& !is_assignment(c, buf)
 		&& !is_list_start(c, buf)
-		&& !is_list_end(c, buf);
+		&& !is_list_end(c, buf)
+		&& !is_hash_start(c, buf)
+		&& !is_hash_end(c, buf)
+		&& !is_delim(c, buf);
 }
 
 inline bool is_assignment(const char c, buffer *buf)
@@ -258,4 +292,20 @@ inline bool is_list_start(const char c, buffer *buf)
 inline bool is_list_end(const char c, buffer *buf)
 {
 	return c == ')';
+}
+
+
+inline bool is_hash_start(const char c, buffer *buffer)
+{
+	return c == '{';
+}
+
+inline bool is_hash_end(const char c, buffer *buffer)
+{
+	return c == '}';
+}
+
+inline bool is_delim(const char c, buffer *buffer)
+{
+	return c == ',';
 }

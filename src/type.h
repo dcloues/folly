@@ -7,30 +7,19 @@ typedef enum { string_t, number_t, list_t, function_t } type;
 
 typedef struct {
 	type type;
-} value;
+	union {
+		int number;
+		union {
+			char *chars;
+			int len;
+		} str;
+		linked_list *list;
+	};
+} hval;
 
-typedef struct {
-	value base;
-	int number;
-} number;
-
-typedef struct {
-	value base;
-	char *data;
-} string;
-
-typedef struct {
-	value base;
-	linked_list *data;
-} list;
-
-typedef struct {
-	value base;
-} function;
-
-number *number_create(void);
-string *string_create(void);
-list *list_create(void);
+//hval *number_create(void);
+//hval *string_create(void);
+//hval *list_create(void);
 
 #endif
 

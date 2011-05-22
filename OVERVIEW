@@ -1,0 +1,111 @@
+Hasp is a general-purpose, prototype-based, heavily-functional programming
+language inspired by Lisp.  Whereas the primary data structure in Lisp is the
+list, the primary data structure of Hasp is the ordered hash, which in some
+contexts are used strictly as lists.
+
+Hashes are declared as follows:
+(
+    key: value
+    key2: value2
+    key3: value3
+)
+
+Comma-delimitation is also supported. It is mandatory for single-line
+declarations but otherwise optional:
+{ key: value, key2: value2, key3: value3 }
+
+
+Lists, a degenerate form of ordered hash with anonymous keys, are declared
+similarly:
+(
+    value
+    value2
+    value3
+)
+
+Or on a single line:
+(value, value2, value3)
+
+List and hash syntax can be mixed. The resulting hash will have contain named
+and anonymous properties. Most importantly the order of the declarations will be
+maintained:
+
+(
+    key: value
+    key2: value2
+    value3
+    value4
+)
+
+On its own this is not particularly useful, but this data structure forms the
+foundation of the language.
+
+Hash keys can be declare without values:
+(key:)
+
+Functions are implemented as a hash with a special __fn__ property. This
+property is a list of commands to be run in the context of the hash. Function
+parameters are injected into the hash prior to invocation, and the return value
+is available as the __result__ property.
+
+This is a basic definition for a function that returns the square of its
+argument:
+
+square: (
+    __args__: (a:)
+    __fn__: ( *(a a) )
+)
+
+The fn built-in function provides some syntactic sugar for this:
+square: fn((a:) (
+    *(a a)
+))
+
+fn does nothing magical. Here is an example implementation in native Hasp:
+fn: (
+    __args__: (fn_args:, fn_impl:)
+    __fn__: (
+        __args__: fn_args
+        __fn__: fn_impl
+    )
+)
+
+Functions are always applied to a single parameter: a hash that is merged into
+the function's declared hash before evaluating the function's list of
+implementation instructions. Function arguments can be named or anonymous, and
+default values are supported by the __args__ hash.
+
+increment: fn((a:, b: 1) (
+    +(a b)
+)
+
+increment(4, 1) yields 5
+increment(4, 2) yields 6
+increment(4) yields 4
+incrememt(a: 3, b: 7) yields 10
+increment(b:7) yields a runtime error
+
+Yield in this context implies Hasp's lazy evaluation model. Functions are not
+fully evaluated until absolutely necessary or until forced by using the <>
+operator:
+
+a: +(*(2 3 ) *(4 6))
+b: <+(5 6)>
+
+After executing these, b is equal to 6, whereas a is equal to +(*2 3) *(4 6) -
+that is to say, a has not yet been evaluated.
+
+Lazy evaluation permits function parameter rebinding and trivial partial
+evaluation of functions:
+
+add_4: increment(b: 4)
+val_10: add_4(6)
+val_14: add_4(10)
+
+add_3: add_4(b: 3)
+val_6: add_3(3)
+val_11: add_4(7)
+
+Note that after rebinding b by declaring add_3, the originally bound add_4 is
+unchanged. This is for the same reason that binding a parameter to any function
+definition does not overwrite its default value for future invocations.

@@ -85,8 +85,7 @@ char *buffer_substring(buffer *buf, int offset, int len)
 		exit(1);
 	}
 	
-	char *str = malloc(len + 1);
-	str[len-1] = '\0';
+	char *str = calloc(len + 1, sizeof(char));
 	return memcpy(str, buf->data + offset, len);
-	
 }
+

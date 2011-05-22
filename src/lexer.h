@@ -2,7 +2,7 @@
 #include "buffer.h"
 #include "linked_list.h"
 
-typedef enum { identifier, number, string, assignment, list_start, list_end } token_type;
+typedef enum { identifier, number, string, assignment, list_start, list_end, hash_start, hash_end, delim } token_type;
 
 typedef union {
 	char *string;

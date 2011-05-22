@@ -4,3 +4,9 @@ identifier: "identifier_value"
 another_identifier
 chain of identifiers
 (this is a list)
+(this is a list)
+{
+    this: "is"
+    a: "hash"
+}
+{ inline: "hash", example: "here" }
