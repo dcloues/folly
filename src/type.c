@@ -1,25 +1,33 @@
 #include <stdlib.h>
+#include <string.h>
 #include "type.h"
+#include "ht.h"
+#include "ht_builtins.h"
 
+hval *hval_string_create(char *str)
+{
+	hval *hval = malloc(sizeof(hval));
+	hval->value.str.chars = str;
+	hval->value.str.len = strlen(str);
+	return hval;
+}
 
-/*hval *number_create(void)*/
-/*{*/
-	/*hval *num = malloc(sizeof(hval));*/
-	
-	/*number *num = value_create(number_t, sizeof(number));*/
-	/*return num;*/
-/*}*/
+hval *hval_number_create(int number)
+{
+	hval *hval = malloc(sizeof(hval));
+	hval->value.number = number;
+	return hval;
+}
 
-/*hval *string_create(void)*/
-/*{*/
-	/*string *str = value_create(string_t, sizeof(string));*/
-	/*return str;*/
-/*}*/
+hval *hval_hash_create(void)
+{
+	hval *hval = malloc(sizeof(hval));
+	hval->value.hash.members = hash_create(hash_string, hash_string_comparator);
+	return hval;
+}
 
-/*list *list_create(void)*/
-/*{*/
-	/*// TODO Error checking*/
-	/*list *list = value_create(list_t, sizeof(list));*/
-	/*list->data = malloc(sizeof(linked_list));*/
-	/*return list;*/
-/*}*/
+char *hval_to_string(hval *hval)
+{
+	return "hval";
+}
+

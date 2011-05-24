@@ -2,24 +2,19 @@
 #include <stdlib.h>
 #include <unistd.h>
 #include "lexer.h"
+#include "runtime.h"
 #include "linked_list.h"
 
 int main(int argc, char **argv)
 {
-	token *tok = NULL;
-	FILE *fh = fopen(argv[1], "r");
-	linked_list *tokens = ll_create();
-	while (tok = get_next_token(fh)) {
-		ll_insert_tail(tokens, tok);
+	if (argc != 2)
+	{
+		printf("usage: parsify input\n");
+		exit(1);
 	}
 
-	ll_node *node = tokens->head;
-	while (node) {
-		char *str = token_to_string(node->data);
-		puts(str);
-		free(str);
-		node = node->next;
-	}
+	runtime *r = runtime_create();
+	runtime_eval(r, argv[1]);
 
 	return 0;
 }

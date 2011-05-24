@@ -87,6 +87,7 @@ char *token_to_string(token *token)
 	size_t data_size = token_string_size(token);
 	data_size += strlen(type);
 	data_size += 3; // 2 for ': ', 1 for \0
+	printf("token_to_string got type: %s with data size: %d\n", type, data_size);
 	char *buf = malloc(data_size);
 	switch (token->type) {
 		case identifier:
@@ -156,6 +157,8 @@ token* get_next_token(FILE *fh)
 			return token;
 		}
 	}
+
+	return NULL;
 }
 
 token *get_token_numeric(FILE *fh, buffer *buf)
@@ -172,7 +175,7 @@ token *get_token_string(FILE *fh, buffer *buf)
 {
 	read_matching(fh, buf, is_string_incomplete);
 	char *str = buffer_substring(buf, 1, buf->len - 2);
-	printf("get_token_string read %d chars: '%s'\n", buf->len-2, str);
+	/*printf("get_token_string read %d chars: '%s'\n", buf->len-2, str);*/
 
 	token *token = token_create(string);
 	token->value.string = str;

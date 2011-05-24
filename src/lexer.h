@@ -1,3 +1,6 @@
+#ifndef LEXER_H
+#define LEXER_H
+
 #include <stdbool.h>
 #include "buffer.h"
 #include "linked_list.h"
@@ -26,3 +29,5 @@ char* token_to_string(token *token);
 token* get_next_token(FILE *fh);
 token* get_token_number(FILE *fh);
 token *token_create(token_type type);
+
+#endif

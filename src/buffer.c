@@ -74,7 +74,8 @@ char buffer_peek(buffer *buffer)
 char *buffer_to_string(buffer *buffer)
 {
 	char *str = malloc(buffer->len + 1);
-	strncpy(str, buffer->data, buffer->len + 1);
+	str[buffer->len] = 0;
+	strncpy(str, buffer->data, buffer->len);
 	return str;
 }
 
