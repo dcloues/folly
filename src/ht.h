@@ -2,6 +2,7 @@
 #define HT_H
 
 #include <stdbool.h>
+#include "linked_list.h"
 
 typedef int (*hash_function)(void *);
 typedef bool (*key_comparator)(void *, void *);
@@ -24,6 +25,8 @@ typedef struct {
  * Creates a new hash using the specified hash function and key comparator.
  */
 hash *hash_create(hash_function hash_func, key_comparator comp);
+
+void hash_destroy(hash *h, destructor key_dtor, destructor value_dtor);
 
 /* Adds a key to the hash and returns the value that was previously
  * associated with it, if any.

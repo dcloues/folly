@@ -14,7 +14,11 @@ int main(int argc, char **argv)
 	}
 
 	runtime *r = runtime_create();
-	runtime_eval(r, argv[1]);
+	hval *ctx = runtime_eval(r, argv[1]);
+	runtime_destroy(r);
+	r = NULL;
+
+	hval_destroy(ctx);
 
 	return 0;
 }

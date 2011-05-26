@@ -4,38 +4,70 @@
 
 unsigned int hash_index_of(hash *hash, void *key);
 void *hash_resolve_chain(hash *hash, hash_entry *entry, void *key);
+void hash_entry_destroy(hash_entry *entry, destructor key_dtor, destructor value_dtor, bool top_level);
 
 hash *hash_create(hash_function hash_func, key_comparator comp)
 {
-	hash *hash = malloc(sizeof(hash));
-	if (hash == NULL)
+	hash *h = malloc(sizeof(hash));
+	if (h == NULL)
 	{
 		perror("Unable to allocate memory for hash");
 	} else {
-		hash->buckets = 32;
-		hash->table = malloc(sizeof(hash_entry) * hash->buckets);
-		for (int i=0; i < hash->buckets; i++) {
-			hash->table[i].key = NULL;
-			hash->table[i].value = NULL;
-			hash->table[i].next = NULL;
+		h->buckets = 32;
+		h->table = malloc(sizeof(hash_entry) * h->buckets);
+		for (int i=0; i < h->buckets; i++) {
+			h->table[i].key = NULL;
+			h->table[i].value = NULL;
+			h->table[i].next = NULL;
 		}
 
-		if (hash->table == NULL)
+		if (h->table == NULL)
 		{
 			perror("Unable to allocate memory for hash table");
 			// don't return a half-ready table
-			free(hash);
-			hash = NULL;
+			free(h);
+			h = NULL;
 		}
 		else
 		{
-			hash->size = 0;
-			hash->hasher = hash_func;
-			hash->key_comparator = comp;
+			h->size = 0;
+			h->hasher = hash_func;
+			h->key_comparator = comp;
 		}
 	}
 
-	return hash;
+	return h;
+}
+
+void hash_destroy(hash *h, destructor key_dtor, destructor value_dtor)
+{
+	int i = h->buckets;
+	while (--i >= 0)
+	{
+		hash_entry *entry = h->table + i;
+		hash_entry_destroy(entry, key_dtor, value_dtor, true);
+	}
+
+	free(h->table);
+	free(h);
+}
+
+void hash_entry_destroy(hash_entry *entry, destructor key_dtor, destructor value_dtor, bool top_level)
+{
+	if (!entry || !entry->key)
+	{
+		return;
+	}
+
+	hash_entry_destroy(entry->next, key_dtor, value_dtor, false);
+	key_dtor(entry->key);
+	printf("hash_entry_destroy key, value: %p %p\n", entry->key, entry->value);
+	value_dtor(entry->value);
+
+	if (!top_level)
+	{
+		free(entry);
+	}
 }
 
 void *hash_put(hash *hash, void *key, void *value)

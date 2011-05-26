@@ -1,4 +1,5 @@
 #include <stdlib.h>
+#include <string.h>
 #include <stdio.h>
 #include "runtime.h"
 #include "lexer.h"
@@ -13,21 +14,33 @@ token *runtime_get_next_token(runtime *runtime);
 
 runtime *runtime_create()
 {
-	runtime *runtime = malloc(sizeof(runtime));
-	return runtime;
+	runtime *r = malloc(sizeof(runtime));
+	r->current = NULL;
+	return r;
+}
+
+void runtime_destroy(runtime *r)
+{
+	if (r)
+	{ 
+		if (r->tokens)
+		{
+			ll_destroy(r->tokens, (destructor) token_destroy);
+		}
+		free(r);
+	}
 }
 
 hval *runtime_eval(runtime *runtime, char *file)
 {
 	runtime_parse(runtime, file);
 
-	runtime_eval_loop(runtime);
-	return NULL;
+	hval *context = runtime_eval_loop(runtime);
+	return context;
 }
 
 void runtime_parse(runtime *runtime, char *file)
 {
-	printf("runtime: %p\n", runtime);
 	FILE *fh = fopen(file, "r");
 	linked_list *tokens = ll_create();
 	token *tok = NULL;
@@ -37,25 +50,21 @@ void runtime_parse(runtime *runtime, char *file)
 	}
 
 	runtime->tokens = tokens;
-	/*runtime->current = tokens->head;*/
 
 	fclose(fh);
 }
 
 hval *runtime_eval_loop(runtime *runtime)
 {
-	printf("runtime_eval_loop\n");
 	hval *context = hval_hash_create();
-	printf("created context\n");
 	token *tok = NULL;
-	/*while (tok = runtime_get_next_token(runtime))*/
 	
 	while (tok = runtime_get_next_token(runtime))
 	{
 		printf("processing token: %p\n", tok);
 		char *str = token_to_string(tok);
-		printf("evaluating token: %s", str);
-		/*free(str);*/
+		printf("evaluating token: %s\n", str);
+		free(str);
 		runtime_eval_token(tok, runtime, context);
 	}
 
@@ -72,7 +81,7 @@ hval *runtime_eval_token(token *tok, runtime *runtime, hval *context)
 		case identifier:
 			return runtime_eval_identifier(tok, runtime, context);
 		case string:
-			return hval_string_create(tok->value.string);
+			return hval_string_create(tok->value.string, strlen(tok->value.string));
 		case number:
 			return hval_number_create(tok->value.number);
 		default:
@@ -93,7 +102,8 @@ hval *runtime_eval_identifier(token *tok, runtime *runtime, hval *context)
 		runtime_get_next_token(runtime);
 		token *next_token = runtime_get_next_token(runtime);
 		hval *hval = runtime_eval_token(next_token, runtime, context);
-		char *name = tok->value.string;
+		char *name = malloc(strlen(tok->value.string) + 1);
+		strcpy(name, tok->value.string);
 		hash_put(context->value.hash.members, name, hval);
 		return hval;
 	}
@@ -108,24 +118,16 @@ token *runtime_peek_token(runtime *runtime)
 
 token *runtime_get_next_token(runtime *runtime)
 {
-	printf("runtime_get_next_token: %p\n", runtime);
-	printf("tokens: %p\n", runtime->tokens);
-	printf("current: %p\n", runtime->current);
 	if (runtime->current)
 	{
-		printf("got a current token - skipping to next\n");
 		runtime->current = runtime->current->next;
 		return runtime->current ? runtime->current->data : NULL;
 	}
 	else
 	{
 		runtime->current = runtime->tokens->head;
-		printf("set current to: %p\n", runtime->current);
-		printf("data: %p\n", runtime->current->data);
 		return runtime->current->data;
 	}
-
-	printf("down here\n");
 
 	return NULL;
 }

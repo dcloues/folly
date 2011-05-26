@@ -45,14 +45,26 @@ static rule rules[] = {
 
 token *token_create(token_type type)
 {
-	token *token = malloc(sizeof(token));
-	if (!token) {
+	token *t = malloc(sizeof(token));
+	if (!t) {
 		perror("Unable to allocate memory for token");
 		exit(1);
 	}
 
-	token->type = type;
-	return token;
+	t->type = type;
+	return t;
+}
+
+void token_destroy(token *t)
+{
+	if (t)
+	{
+		if (t->type == identifier || t->type == string)
+		{
+			free(t->value.string);
+		}
+		free(t);
+	}
 }
 
 const char* token_type_string(token *token)
@@ -87,7 +99,6 @@ char *token_to_string(token *token)
 	size_t data_size = token_string_size(token);
 	data_size += strlen(type);
 	data_size += 3; // 2 for ': ', 1 for \0
-	printf("token_to_string got type: %s with data size: %d\n", type, data_size);
 	char *buf = malloc(data_size);
 	switch (token->type) {
 		case identifier:
@@ -186,7 +197,8 @@ token *get_token_identifier(FILE *fh, buffer *buf)
 {
 	read_matching(fh, buf, is_identifier);
 	token *token = token_create(identifier);
-	token->value.string = buffer_to_string(buf);
+	char *str = buffer_to_string(buf);
+	token->value.string = str;
 
 	return token;
 }

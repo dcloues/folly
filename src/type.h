@@ -4,13 +4,13 @@
 #include "linked_list.h"
 #include "ht.h"
 
-typedef enum { string_t, number_t, list_t, function_t } type;
+typedef enum { string_t, number_t, hash_t } type;
 
 typedef struct {
 	type type;
 	union {
 		int number;
-		union {
+		struct {
 			char *chars;
 			int len;
 		} str;
@@ -22,11 +22,8 @@ typedef struct {
 	} value;
 } hval;
 
-//hval *number_create(void);
-//hval *string_create(void);
-//hval *list_create(void);
-
-hval *hval_string_create(char *str);
+void hval_destroy(hval *hv);
+hval *hval_string_create(const char *str, const int len);
 hval *hval_number_create(int num);
 hval *hval_hash_create(void);
 char *hval_to_string(hval *);
