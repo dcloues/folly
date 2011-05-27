@@ -185,6 +185,22 @@ void *hash_remove(hash *hash, void *key)
 	return old_value;
 }
 
+void hash_iterate(hash *h, key_value_callback callback, void *ctx)
+{
+	for (int i = 0; i < h->buckets; i++)
+	{
+		if (h->table[i].key)
+		{
+			hash_entry *entry = h->table + i;
+			do
+			{
+				callback(h, entry->key, entry->value, ctx);
+				entry = entry->next;
+			}  while (entry);
+		}
+	}
+}
+
 void hash_dump(hash *hash, char *(*value_to_string)(void *))
 {
 	printf("hash: size=%d with %d buckets\n", hash->size, hash->buckets);

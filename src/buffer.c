@@ -1,3 +1,5 @@
+#include <stdarg.h>
+#include <stdbool.h>
 #include <stdlib.h>
 #include <stdio.h>
 #include <string.h>
@@ -88,5 +90,51 @@ char *buffer_substring(buffer *buf, int offset, int len)
 	
 	char *str = calloc(len + 1, sizeof(char));
 	return memcpy(str, buf->data + offset, len);
+}
+
+void buffer_printf(buffer *b, char *fmt, ...)
+{
+	// pulling these numbers out of thin air
+	if (buffer_capacity(b) < 20)
+	{
+		buffer_ensure_additional_capacity(b, 20);
+	}
+
+	int size = 0;
+	char *str = b->data + b->len;
+	int n = 0;
+	va_list args;
+
+	while (true)
+	{
+		size = buffer_capacity(b);
+		va_start(args, fmt);
+		n = vsnprintf(str, size, fmt, args);
+		/*printf("\trequested %d chars (%d actual)\n", n, size);*/
+		va_end(args);
+
+		if (n > -1 && n < size)
+		{
+			b->len += n;
+			return;
+		}
+		else if (n > -1)
+		{
+			buffer_ensure_capacity(b, b->len + n);
+		}
+	}
+
+}
+
+buffer_shrink(buffer *b, int n)
+{
+	if (b->len >= n)
+	{
+		b->len = b->len - n;
+	}
+	else
+	{
+		b->len = 0;
+	}
 }
 

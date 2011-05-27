@@ -1,14 +1,16 @@
 #include <stdlib.h>
 #include <string.h>
 #include <stdio.h>
+#include "buffer.h"
 #include "fmt.h"
 #include "ht.h"
 #include "ht_builtins.h"
 #include "type.h"
 
 static char *hval_hash_to_string(hash *h);
-
+void print_hash_member(hash *h, char *key, hval *value, buffer *b);
 hval *hval_create(type);
+
 const char *hval_type_string(type t)
 {
 	switch (t)
@@ -78,7 +80,28 @@ char *hval_to_string(hval *hval)
 
 char *hval_hash_to_string(hash *h)
 {
-	return fmt("size: %d", h->size);
+	buffer *b = buffer_create(128);
+	buffer_printf(b, "size: %d {", h->size);
+
+	hash_iterate(h, (key_value_callback) print_hash_member, b);
+	buffer_shrink(b, 1);
+	buffer_append_char(b, '}');
+
+	char *str = buffer_to_string(b);
+	buffer_destroy(b);
+	b = NULL;
+	return str;
+}
+
+void print_hash_member(hash *h, char *key, hval *value, buffer *b)
+{
+	char *val = hval_to_string(value);
+	if (val != NULL)
+	{
+		buffer_printf(b, "%s: %s ", key, val);
+		free(val);
+		val = NULL;
+	}
 }
 
 hval *hval_create(type hval_type)
