@@ -200,6 +200,11 @@ void hash_dump(hash *hash, char *(*value_to_string)(void *))
 						? value_to_string(entry->value)
 						: (char *) entry->value;
 				printf(" %d: %s", hash->hasher(entry->key), val_str);
+				if (value_to_string)
+				{
+					free(val_str);
+					val_str = NULL;
+				}
 				entry = entry->next;
 			} while (entry);
 			printf("\n");
