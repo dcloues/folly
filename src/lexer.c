@@ -67,9 +67,19 @@ void token_destroy(token *t)
 	}
 }
 
-const char* token_type_string(token *token)
+const char *token_type_string_token(token *token)
 {
-	switch (token->type) {
+	if (token != NULL)
+	{
+		return token_type_string(token->type);
+	}
+
+	return "(null)";
+}
+
+const char* token_type_string(token_type type)
+{
+	switch (type) {
 		case identifier:
 			return "identifier";
 		case string:
@@ -95,7 +105,7 @@ const char* token_type_string(token *token)
 
 char *token_to_string(token *token)
 {
-	const char *type = token_type_string(token);	
+	const char *type = token_type_string_token(token);
 	size_t data_size = token_string_size(token);
 	data_size += strlen(type);
 	data_size += 3; // 2 for ': ', 1 for \0

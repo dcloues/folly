@@ -23,7 +23,8 @@ typedef struct {
 	token *(*read_token)(FILE *fh, buffer *);
 } rule;
 
-const char* token_type_string(token *token);
+const char* token_type_string_token(token *token);
+const char* token_type_string(token_type type);
 char* token_to_string(token *token);
 
 token* get_next_token(FILE *fh);

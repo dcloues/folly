@@ -1,11 +1,24 @@
 #include <stdlib.h>
 #include <string.h>
 #include <stdio.h>
-#include "type.h"
+#include "fmt.h"
 #include "ht.h"
 #include "ht_builtins.h"
+#include "type.h"
+
+static char *hval_hash_to_string(hash *h);
 
 hval *hval_create(type);
+const char *hval_type_string(type t)
+{
+	switch (t)
+	{
+		case string_t: return "string";
+		case number_t: return "number";
+		case hash_t:   return "hash";
+		default:       return "unknown";
+	}
+}
 
 hval *hval_string_create(const char *str, const int len)
 {
@@ -38,7 +51,34 @@ hval *hval_hash_create(void)
 
 char *hval_to_string(hval *hval)
 {
-	return "hval";
+	if (hval == NULL)
+	{
+		return "(NULL)";
+	}
+
+	const type t = hval->type;
+	const char *type_str = hval_type_string(t);
+	char *contents = NULL;
+	char *str = NULL;
+	switch (t)
+	{
+		case string_t:
+			return fmt("%s@%p: %s", type_str, hval, hval->value.str.chars);
+		case number_t:
+			return fmt("%s@%p: %d", type_str, hval, hval->value.number);
+		case hash_t:
+			contents = hval_hash_to_string(hval->value.hash.members);
+			str = fmt("%s@%p: %s", type_str, hval, contents);
+			free(contents);
+			return str;
+	}
+
+	return "hval_to_string_error";
+}
+
+char *hval_hash_to_string(hash *h)
+{
+	return fmt("size: %d", h->size);
 }
 
 hval *hval_create(type hval_type)

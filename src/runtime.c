@@ -8,9 +8,12 @@
 #include "ht.h"
 
 hval *runtime_eval_loop(runtime *runtime);
+hval *runtime_eval_hash(token *tok, runtime *runtime, hval *context);
+hval *runtime_assignment(token *name, runtime *runtime, hval *context, hval *target);
 void runtime_parse(runtime *runtime, char *file);
 token *runtime_peek_token(runtime *runtime);
 token *runtime_get_next_token(runtime *runtime);
+static void *expect_token(token *t, type token_type);
 
 runtime *runtime_create()
 {
@@ -80,6 +83,8 @@ hval *runtime_eval_token(token *tok, runtime *runtime, hval *context)
 	{
 		case identifier:
 			return runtime_eval_identifier(tok, runtime, context);
+		case hash_start:
+			return runtime_eval_hash(tok, runtime, context);
 		case string:
 			return hval_string_create(tok->value.string, strlen(tok->value.string));
 		case number:
@@ -87,6 +92,27 @@ hval *runtime_eval_token(token *tok, runtime *runtime, hval *context)
 		default:
 			printf("unhandled token\n");
 	}
+}
+
+hval *runtime_eval_hash(token *tok, runtime *runtime, hval *context)
+{
+	hval *h = hval_hash_create();
+	while (true)
+	{
+		tok = runtime_get_next_token(runtime);
+		if (tok->type == hash_end)
+		{
+			break;
+		}
+
+		expect_token(tok, identifier);
+		// TODO pass a separate lookup context so variables can be resolved
+		runtime_assignment(tok, runtime, context, h);
+	}
+
+	printf("runtime_eval_hash\n");
+	hash_dump(h->value.hash.members, (char * (*)(void *))hval_to_string);
+	return h;
 }
 
 hval *runtime_eval_identifier(token *tok, runtime *runtime, hval *context)
@@ -98,15 +124,20 @@ hval *runtime_eval_identifier(token *tok, runtime *runtime, hval *context)
 	}
 	else if (next_token->type == assignment)
 	{
-		// consume the assignment
-		runtime_get_next_token(runtime);
-		token *next_token = runtime_get_next_token(runtime);
-		hval *hval = runtime_eval_token(next_token, runtime, context);
-		char *name = malloc(strlen(tok->value.string) + 1);
-		strcpy(name, tok->value.string);
-		hash_put(context->value.hash.members, name, hval);
-		return hval;
+		return runtime_assignment(tok, runtime, context, context);
 	}
+}
+
+hval *runtime_assignment(token *name_token, runtime *runtime, hval *context, hval *target)
+{
+	// consume the assignment
+	runtime_get_next_token(runtime);
+	token *next_token = runtime_get_next_token(runtime);
+	hval *hval = runtime_eval_token(next_token, runtime, context);
+	char *name = malloc(strlen(name_token->value.string) + 1);
+	strcpy(name, name_token->value.string);
+	hash_put(target->value.hash.members, name, hval);
+	return hval;
 }
 
 token *runtime_peek_token(runtime *runtime)
@@ -130,4 +161,14 @@ token *runtime_get_next_token(runtime *runtime)
 	}
 
 	return NULL;
+}
+
+static void *expect_token(token *t, type token_type)
+{
+	if (!t || token_type != t->type)
+	{
+		fprintf(stderr, "Error: unexpected %s (expected %s)",
+			token_type_string_token(t),
+			token_type_string(token_type));
+	}
 }

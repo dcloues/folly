@@ -27,6 +27,7 @@ hval *hval_string_create(const char *str, const int len);
 hval *hval_number_create(int num);
 hval *hval_hash_create(void);
 char *hval_to_string(hval *);
+const char *hval_type_string(type t);
 
 #endif
 

@@ -1,0 +1,6 @@
+key: "value"
+another_key: "another_value"
+hash_key: {
+    k1: "value 1"
+    k2: "value 2"
+}
