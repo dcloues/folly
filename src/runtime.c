@@ -37,7 +37,8 @@ runtime *runtime_create()
 	runtime *r = malloc(sizeof(runtime));
 	r->current = NULL;
 	r->top_level = hval_hash_create();
-	/*register_top_level(r);*/
+	fprintf(stderr, "top_level: %p\n", r->top_level);
+	register_top_level(r);
 	return r;
 }
 
@@ -65,11 +66,11 @@ static void register_top_level(runtime *r)
 			break;
 		}
 
+		printf("registering top level function: %s\n", f->name);
 		hstr *name = hstr_create(f->name);
 		hval *fun = hval_native_function_create(f->fn);
 		hval_hash_put(r->top_level, name, fun);
 		hstr_release(name);
-		/*hash_put(r->top_level->value.hash.members, f->name, f->fn);*/
 	}
 }
 
@@ -196,7 +197,9 @@ hval *runtime_eval_identifier(token *tok, runtime *runtime, hval *context)
 			fprintf(stderr, "no function %s\n", token_string(tok)->str);
 			return NULL;
 		}
-		return runtime_apply_function(runtime, function, arguments);
+		hval *result = runtime_apply_function(runtime, function, arguments);
+
+		return result;
 	}
 }
 
@@ -259,6 +262,7 @@ static void *expect_token(token *t, type token_type)
 
 static hval *native_print(hval *this, hval *args)
 {
+	fprintf(stderr, "IN NATIVE PRINT!\n");
 	char *str = hval_to_string(args);
 	puts(str);
 	free(str);

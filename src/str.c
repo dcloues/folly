@@ -47,3 +47,7 @@ char *hstr_to_str(hstr *hs)
 	return str;
 }
 
+bool hstr_comparator(hstr *h1, hstr *h2)
+{
+	return strcmp(h1->str, h2->str) == 0;
+}

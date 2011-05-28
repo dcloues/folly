@@ -10,7 +10,8 @@
 
 static char *hval_hash_to_string(hash *h);
 static char *hval_list_to_string(linked_list *h);
-void print_hash_member(hash *h, char *key, hval *value, buffer *b);
+static int hash_hstr(hstr *);
+void print_hash_member(hash *h, hstr *key, hval *value, buffer *b);
 hval *hval_create(type);
 
 const char *hval_type_string(type t)
@@ -45,7 +46,7 @@ hval *hval_number_create(int number)
 hval *hval_hash_create(void)
 {
 	hval *hv = hval_create(hash_t);
-	hv->value.hash.members = hash_create(hash_string, hash_string_comparator);
+	hv->value.hash.members = hash_create((hash_function) hash_hstr, (key_comparator) hstr_comparator);
 	return hv;
 }
 
@@ -61,7 +62,7 @@ hval *hval_hash_create_child(hval *parent)
 
 hval *hval_hash_get(hval *hv, hstr *key)
 {
-	printf("hval_hash_get: %s\n", key->str);
+	printf("hval_hash_get: %s (%p)\n", key->str, hv);
 	if (hv == NULL)
 	{
 		printf("NULL hash - returning\n");
@@ -72,6 +73,9 @@ hval *hval_hash_get(hval *hv, hstr *key)
 	hval *val = hash_get(h, key);
 	if (val == NULL)
 	{
+		char *dump_str = hval_to_string(hv);
+		fprintf(stderr, "%s not found in %s\n", key->str, dump_str);
+		free(dump_str);
 		hstr *parent_key = hstr_create("__parent__");
 		val = hval_hash_get(hash_get(h, parent_key), key);
 		hstr_release(parent_key);
@@ -83,6 +87,7 @@ hval *hval_hash_get(hval *hv, hstr *key)
 hval *hval_hash_put(hval *hv, hstr *key, hval *value)
 {
 	// TODO Handle overwrite/cleanup
+	printf("hval_hash_put: %s\n", key->str);
 	hstr_retain(key);
 	hash_put(hv->value.hash.members, key, value);
 	return value;
@@ -129,6 +134,9 @@ char *hval_to_string(hval *hval)
 			str = fmt("%s@%p: %s", type_str, hval, contents);
 			free(contents);
 			return str;
+		case native_function_t:
+			return fmt("native function");
+
 	}
 
 	return "hval_to_string_error";
@@ -178,12 +186,12 @@ static char *hval_list_to_string(linked_list *l)
 	return str;
 }
 
-void print_hash_member(hash *h, char *key, hval *value, buffer *b)
+void print_hash_member(hash *h, hstr *key, hval *value, buffer *b)
 {
 	char *val = hval_to_string(value);
 	if (val != NULL)
 	{
-		buffer_printf(b, "%s: %s ", key, val);
+		buffer_printf(b, "%s: %s ", key->str, val);
 		free(val);
 		val = NULL;
 	}
@@ -204,6 +212,9 @@ void hval_destroy(hval *hv)
 			hstr_release(hv->value.str);
 			hv->value.str = NULL;
 			break;
+		case list_t:
+			ll_destroy(hv->value.list, (destructor) hval_destroy);
+			break;
 		case hash_t:
 			hash_destroy(hv->value.hash.members, (destructor) hstr_release, (destructor)hval_destroy);
 			hv->value.hash.members = NULL;
@@ -213,3 +224,7 @@ void hval_destroy(hval *hv)
 	free(hv);
 }
 
+static int hash_hstr(hstr *hs)
+{
+	return hash_string(hs->str);
+}
