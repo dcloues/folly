@@ -5,6 +5,7 @@
 #include "fmt.h"
 #include "ht.h"
 #include "ht_builtins.h"
+#include "linked_list.h"
 #include "type.h"
 
 static char *hval_hash_to_string(hash *h);
@@ -15,10 +16,12 @@ const char *hval_type_string(type t)
 {
 	switch (t)
 	{
-		case string_t: return "string";
-		case number_t: return "number";
-		case hash_t:   return "hash";
-		default:       return "unknown";
+		case string_t:	       	return "string";
+		case number_t:	       	return "number";
+		case list_t:	       	return "list";
+		case hash_t:	       	return "hash";
+		case quoted_list_t:	return "quoted list";
+		default:		return "unknown";
 	}
 }
 
@@ -48,6 +51,21 @@ hval *hval_hash_create(void)
 {
 	hval *hv = hval_create(hash_t);
 	hv->value.hash.members = hash_create(hash_string, hash_string_comparator);
+	return hv;
+}
+
+hval *hval_list_create(void)
+{
+	hval *hv = hval_create(list_t);
+	hv->value.list = ll_create();
+	return hv;
+}
+
+hval *hval_native_function_create(native_function fn)
+{
+	hval *hv = hval_hash_create();
+	hash_put(hv->value.hash.members, "__nativefn__", fn);
+
 	return hv;
 }
 

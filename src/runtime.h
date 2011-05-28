@@ -7,6 +7,7 @@
 typedef struct {
 	linked_list *tokens;
 	ll_node *current;
+	hval *top_level;
 } runtime;
 
 runtime *runtime_create();

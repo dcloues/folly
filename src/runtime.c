@@ -14,11 +14,26 @@ void runtime_parse(runtime *runtime, char *file);
 token *runtime_peek_token(runtime *runtime);
 token *runtime_get_next_token(runtime *runtime);
 static void *expect_token(token *t, type token_type);
+static void register_top_level(runtime *);
+
+static hval *native_print(hval *this, hval *args);
+
+typedef struct {
+	char *name;
+	native_function fn;
+} native_function_declaration;
+
+static native_function_declaration top_levels[] = {
+	{"print", native_print}
+};
+	
 
 runtime *runtime_create()
 {
 	runtime *r = malloc(sizeof(runtime));
 	r->current = NULL;
+	r->top_level = hval_hash_create();
+	register_top_level(r);
 	return r;
 }
 
@@ -31,6 +46,15 @@ void runtime_destroy(runtime *r)
 			ll_destroy(r->tokens, (destructor) token_destroy);
 		}
 		free(r);
+	}
+}
+
+static void register_top_level(runtime *r)
+{
+	for (int i = 0; i < sizeof(top_levels); i++)
+	{
+		native_function_declaration *f = top_levels + i;
+		hash_put(r->top_level->value.hash.members, f->name, f->fn);
 	}
 }
 
@@ -172,3 +196,12 @@ static void *expect_token(token *t, type token_type)
 			token_type_string(token_type));
 	}
 }
+
+static hval *native_print(hval *this, hval *args)
+{
+	char *str = hval_to_string(args);
+	printf(str);
+	free(str);
+	return NULL;
+}
+

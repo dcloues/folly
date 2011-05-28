@@ -52,12 +52,12 @@ This is a basic definition for a function that returns the square of its
 argument:
 
 square: (
-    __args__: (a:)
-    __fn__: ( *(a a) )
+    __args__: `(a:)
+    __fn__: `( *(a a) )
 )
 
 The fn built-in function provides some syntactic sugar for this:
-square: fn((a:) (
+square: fn(`(a:) `(
     *(a a)
 ))
 
