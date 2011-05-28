@@ -42,7 +42,7 @@ void *hash_remove(hash *hash, void *key);
 
 void *hash_get(hash *hash, void *key);
 
-void hash_dump(hash *hash, char *(*value_to_string)(void *));
+void hash_dump(hash *hash, char *(key_to_string)(void *), char *(*value_to_string)(void *));
 
 //void hash_iterate(hash *h, void (*callback)(hash *, void *, void *, void *), void *ctx);
 void hash_iterate(hash *h, key_value_callback callback, void *ctx);

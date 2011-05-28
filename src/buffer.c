@@ -27,13 +27,13 @@ void buffer_destroy(buffer *buffer) {
 	free(buffer);
 }
 
-void buffer_append_string(buffer *buf, char *str, int n)
+void buffer_append_string(buffer *buf, char *str)
 {
 	int len = strlen(str);
 	buffer_ensure_additional_capacity(buf, len);
-	strncpy(buf->data + buf->len, str, len);
+	memcpy(buf->data + buf->len, str, len);
 	buf->len += len;
-	buffer_append_char(buf, '\0');
+	buf->data[buf->len] = '\0';
 }
 
 void buffer_append_char(buffer *buf, char ch)
@@ -126,7 +126,7 @@ void buffer_printf(buffer *b, char *fmt, ...)
 
 }
 
-buffer_shrink(buffer *b, int n)
+void buffer_shrink(buffer *b, int n)
 {
 	if (b->len >= n)
 	{

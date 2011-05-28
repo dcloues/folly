@@ -201,7 +201,7 @@ void hash_iterate(hash *h, key_value_callback callback, void *ctx)
 	}
 }
 
-void hash_dump(hash *hash, char *(*value_to_string)(void *))
+void hash_dump(hash *hash, char *(*key_to_string)(void *), char *(*value_to_string)(void *))
 {
 	printf("hash: size=%d with %d buckets\n", hash->size, hash->buckets);
 	for (int i=0; i < hash->buckets; i++)
@@ -212,6 +212,17 @@ void hash_dump(hash *hash, char *(*value_to_string)(void *))
 			hash_entry *entry = hash->table + i;
 			do
 			{
+				char *key_str = key_to_string
+						? key_to_string(entry->key)
+						: (char *) entry->key;
+				
+				printf("key: %s\n", key_str);
+				if (key_to_string)
+				{
+					free(key_str);
+					key_str = NULL;
+				}
+
 				char *val_str = value_to_string
 						? value_to_string(entry->value)
 						: (char *) entry->value;

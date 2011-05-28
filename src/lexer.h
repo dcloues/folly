@@ -4,11 +4,12 @@
 #include <stdbool.h>
 #include "buffer.h"
 #include "linked_list.h"
+#include "str.h"
 
 typedef enum { identifier, number, string, assignment, list_start, list_end, hash_start, hash_end, delim, quote } token_type;
 
 typedef union {
-	char *string;
+	hstr *string;
 	int number;
 	linked_list *list;
 } value;
@@ -22,6 +23,8 @@ typedef struct {
 	bool (*test_input)(char, buffer *);
 	token *(*read_token)(FILE *fh, buffer *);
 } rule;
+
+#define token_string(t) (t->value.string)
 
 const char* token_type_string_token(token *token);
 const char* token_type_string(token_type type);

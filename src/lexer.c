@@ -64,7 +64,7 @@ void token_destroy(token *t)
 	{
 		if (t->type == identifier || t->type == string)
 		{
-			free(t->value.string);
+			hstr_release(t->value.string);
 		}
 		free(t);
 	}
@@ -116,7 +116,7 @@ char *token_to_string(token *token)
 	switch (token->type) {
 		case identifier:
 		case string:
-			sprintf(buf, "%s: %s", type, token->value.string);
+			sprintf(buf, "%s: %s", type, token->value.string->str);
 			break;
 		case number:
 			sprintf(buf, "%s: %d", type, token->value.number);
@@ -135,7 +135,7 @@ size_t token_string_size(token *token)
 	{
 		case identifier:
 		case string:
-			return strlen(token->value.string);
+			return strlen(token->value.string->str);
 		case number:
 			return 11;
 	}
@@ -202,7 +202,8 @@ token *get_token_string(FILE *fh, buffer *buf)
 	/*printf("get_token_string read %d chars: '%s'\n", buf->len-2, str);*/
 
 	token *token = token_create(string);
-	token->value.string = str;
+	token->value.string = hstr_create(str);
+	free(str);
 	return token;
 }
 
@@ -211,7 +212,8 @@ token *get_token_identifier(FILE *fh, buffer *buf)
 	read_matching(fh, buf, is_identifier);
 	token *token = token_create(identifier);
 	char *str = buffer_to_string(buf);
-	token->value.string = str;
+	token->value.string = hstr_create(str);
+	free(str);
 
 	return token;
 }
