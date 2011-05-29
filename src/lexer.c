@@ -18,6 +18,7 @@ token *get_token_hash_start(FILE *fh, buffer *buf);
 token *get_token_hash_end(FILE *fh, buffer *buf);
 token *get_token_delim(FILE *fh, buffer *buf);
 token *get_token_quote(FILE *fh, buffer *buf);
+token *get_token_dereference(FILE *fh, buffer *buf);
 
 bool is_numeric(const char c, buffer *buffer);
 bool is_string_delim(const char c, buffer *buffer);
@@ -31,6 +32,7 @@ bool is_hash_start(const char c, buffer *buffer);
 bool is_hash_end(const char c, buffer *buffer);
 bool is_delim(const char c, buffer *buffer);
 bool is_quote(const char c, buffer *buffer);
+bool is_dereference(const char c, buffer *buffer);
 
 static rule rules[] = {
 	{is_whitespace},
@@ -43,7 +45,8 @@ static rule rules[] = {
 	{is_hash_start, get_token_hash_start},
 	{is_hash_end, get_token_hash_end},
 	{is_delim, get_token_delim},
-	{is_quote, get_token_quote}
+	{is_quote, get_token_quote},
+	{is_dereference, get_token_dereference}
 };
 
 token *token_create(token_type type)
@@ -253,6 +256,11 @@ token *get_token_quote(FILE *fh, buffer *buf)
 	return token_create(quote);
 }
 
+token *get_token_dereference(FILE *fh, buffer *buf)
+{
+	return token_create(dereference);
+}
+
 void read_matching(FILE *fh, buffer *buf, bool (*matcher)(char, buffer*))
 {
 	while (!feof(fh)) {
@@ -351,3 +359,7 @@ inline bool is_quote(const char c, buffer *buffer)
 	return c == '`';
 }
 
+inline bool is_dereference(const char c, buffer *buffer)
+{
+	return c == '.';
+}

@@ -6,7 +6,7 @@
 #include "linked_list.h"
 #include "str.h"
 
-typedef enum { identifier, number, string, assignment, list_start, list_end, hash_start, hash_end, delim, quote } token_type;
+typedef enum { identifier, number, string, assignment, list_start, list_end, hash_start, hash_end, delim, quote, dereference } token_type;
 
 typedef union {
 	hstr *string;

@@ -102,13 +102,14 @@ hval *runtime_eval_loop(runtime *runtime)
 	hval *context = hval_hash_create_child(runtime->top_level);
 	token *tok = NULL;
 	
+	hval *last_result;
 	while (tok = runtime_get_next_token(runtime))
 	{
 		printf("processing token: %p\n", tok);
 		char *str = token_to_string(tok);
 		printf("evaluating token: %s\n", str);
 		free(str);
-		runtime_eval_token(tok, runtime, context);
+		last_result = runtime_eval_token(tok, runtime, context, last_result);
 	}
 
 	printf("runtime_eval_loop terminating. context:\n");
@@ -117,7 +118,7 @@ hval *runtime_eval_loop(runtime *runtime)
 	return context;
 }
 
-hval *runtime_eval_token(token *tok, runtime *runtime, hval *context)
+hval *runtime_eval_token(token *tok, runtime *runtime, hval *context, hval *last_result)
 {
 #ifdef DEBUG_EVAL_TOKEN
 	char *s = token_to_string(tok);
@@ -126,8 +127,10 @@ hval *runtime_eval_token(token *tok, runtime *runtime, hval *context)
 #endif
 	switch(tok->type)
 	{
+		case dereference:
+			return runtime_eval_identifier(tok, runtime, context, last_result);
 		case identifier:
-			return runtime_eval_identifier(tok, runtime, context);
+			return runtime_eval_identifier(tok, runtime, context, context);
 		case hash_start:
 			return runtime_eval_hash(tok, runtime, context);
 		case string:
@@ -169,27 +172,24 @@ static hval *runtime_eval_list(runtime *runtime, hval *context)
 	linked_list *l = list->value.list;
 	while (t->type != list_end)
 	{
-		ll_insert_tail(l, runtime_eval_token(t, runtime, context));
+		ll_insert_tail(l, runtime_eval_token(t, runtime, context, NULL));
 		t = runtime_get_next_token(runtime);
 	}
 
 	return list;
 }
 
-hval *runtime_eval_identifier(token *tok, runtime *runtime, hval *context)
+hval *runtime_eval_identifier(token *tok, runtime *runtime, hval *context, hval *parent)
 {
 	token *next_token = runtime_peek_token(runtime);
-	if (!runtime_peek_token(runtime))
+	hval *real_target = parent ? parent : context;
+	if (next_token->type == assignment)
 	{
-		return hval_hash_get(context, tok->value.string);
-	}
-	else if (next_token->type == assignment)
-	{
-		return runtime_assignment(tok, runtime, context, context);
+		return runtime_assignment(tok, runtime, context, real_target);
 	}
 	else if (next_token->type == list_start)
 	{
-		hval *function = hval_hash_get(context, token_string(tok));
+		hval *function = hval_hash_get(real_target, token_string(tok));
 		runtime_get_next_token(runtime);
 		hval *arguments = runtime_eval_list(runtime, context);
 		if (function == NULL)
@@ -198,8 +198,14 @@ hval *runtime_eval_identifier(token *tok, runtime *runtime, hval *context)
 			return NULL;
 		}
 		hval *result = runtime_apply_function(runtime, function, arguments);
+		hval_destroy(arguments);
+		arguments = NULL;
 
 		return result;
+	}
+	else
+	{
+		return hval_hash_get(real_target, tok->value.string);
 	}
 }
 
@@ -208,7 +214,7 @@ hval *runtime_assignment(token *name_token, runtime *runtime, hval *context, hva
 	// consume the assignment
 	runtime_get_next_token(runtime);
 	token *next_token = runtime_get_next_token(runtime);
-	hval *value = runtime_eval_token(next_token, runtime, context);
+	hval *value = runtime_eval_token(next_token, runtime, context, NULL);
 	/*char *name = malloc(strlen(name_token->value.string) + 1);*/
 
 	/*strcpy(name, name_token->value.string);*/
@@ -262,7 +268,6 @@ static void *expect_token(token *t, type token_type)
 
 static hval *native_print(hval *this, hval *args)
 {
-	fprintf(stderr, "IN NATIVE PRINT!\n");
 	char *str = hval_to_string(args);
 	puts(str);
 	free(str);
