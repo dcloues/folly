@@ -125,23 +125,37 @@ hval *runtime_eval_token(token *tok, runtime *runtime, hval *context, hval *last
 	printf("runtime_eval_token: %s\n", s);
 	free(s);
 #endif
+
+	last_result = NULL;
+	token *deref_name = NULL;
+	hval *result = NULL;
 	switch(tok->type)
 	{
 		case dereference:
-			return runtime_eval_identifier(tok, runtime, context, last_result);
+			deref_name = runtime_get_next_token(runtime);
+			result = runtime_eval_identifier(deref_name, runtime, runtime->last_result, last_result);
+			break;
 		case identifier:
-			return runtime_eval_identifier(tok, runtime, context, context);
+			result = runtime_eval_identifier(tok, runtime, context, context);
+			break;
 		case hash_start:
-			return runtime_eval_hash(tok, runtime, context);
+			result = runtime_eval_hash(tok, runtime, context);
+			break;
 		case string:
-			return hval_string_create(tok->value.string);
+			result = hval_string_create(tok->value.string);
+			break;
 		case number:
-			return hval_number_create(tok->value.number);
+			result = hval_number_create(tok->value.number);
+			break;
 		case list_start:
-			return runtime_eval_list(runtime, context);
+			result = runtime_eval_list(runtime, context);
+			break;
 		default:
 			printf("unhandled token\n");
 	}
+
+	runtime->last_result = result;
+	return result;
 }
 
 hval *runtime_eval_hash(token *tok, runtime *runtime, hval *context)
@@ -182,14 +196,14 @@ static hval *runtime_eval_list(runtime *runtime, hval *context)
 hval *runtime_eval_identifier(token *tok, runtime *runtime, hval *context, hval *parent)
 {
 	token *next_token = runtime_peek_token(runtime);
-	hval *real_target = parent ? parent : context;
+	/*hval *real_target = runtime->last_result ? runtime->last_result : context;*/
 	if (next_token->type == assignment)
 	{
-		return runtime_assignment(tok, runtime, context, real_target);
+		return runtime_assignment(tok, runtime, context, context);
 	}
 	else if (next_token->type == list_start)
 	{
-		hval *function = hval_hash_get(real_target, token_string(tok));
+		hval *function = hval_hash_get(context, token_string(tok));
 		runtime_get_next_token(runtime);
 		hval *arguments = runtime_eval_list(runtime, context);
 		if (function == NULL)
@@ -205,7 +219,7 @@ hval *runtime_eval_identifier(token *tok, runtime *runtime, hval *context, hval 
 	}
 	else
 	{
-		return hval_hash_get(real_target, tok->value.string);
+		return hval_hash_get(context, tok->value.string);
 	}
 }
 
@@ -268,6 +282,7 @@ static void *expect_token(token *t, type token_type)
 
 static hval *native_print(hval *this, hval *args)
 {
+	printf("------------------- print ----------------------\n");
 	char *str = hval_to_string(args);
 	puts(str);
 	free(str);

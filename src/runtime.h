@@ -8,6 +8,7 @@ typedef struct {
 	linked_list *tokens;
 	ll_node *current;
 	hval *top_level;
+	hval *last_result;
 } runtime;
 
 runtime *runtime_create();

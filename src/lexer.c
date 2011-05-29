@@ -320,7 +320,8 @@ inline bool is_identifier(const char c, buffer *buf)
 		&& !is_hash_start(c, buf)
 		&& !is_hash_end(c, buf)
 		&& !is_delim(c, buf)
-		&& !is_quote(c, buf);
+		&& !is_quote(c, buf)
+		&& !is_dereference(c, buf);
 }
 
 inline bool is_assignment(const char c, buffer *buf)
