@@ -89,7 +89,17 @@ hval *hval_hash_put(hval *hv, hstr *key, hval *value)
 	// TODO Handle overwrite/cleanup
 	printf("hval_hash_put: %s\n", key->str);
 	hstr_retain(key);
-	hash_put(hv->value.hash.members, key, value);
+	if (value != NULL)
+	{
+		hval_retain(value);
+	}
+
+	hval *previous = hash_put(hv->value.hash.members, key, value);
+	if (previous != NULL)
+	{
+		hval_release(previous);
+	}
+
 	return value;
 }
 
@@ -98,6 +108,26 @@ hval *hval_list_create(void)
 	hval *hv = hval_create(list_t);
 	hv->value.list = ll_create();
 	return hv;
+}
+
+void hval_list_insert_tail(hval *list, hval *val)
+{
+	if (val)
+	{
+		hval_retain(val);
+	}
+
+	ll_insert_tail(list->value.list, val);
+}
+
+void hval_list_insert_head(hval *list, hval *val)
+{
+	if (val)
+	{
+		hval_retain(val);
+	}
+
+	ll_insert_head(list->value.list, val);
 }
 
 hval *hval_native_function_create(native_function fn)
@@ -201,11 +231,30 @@ hval *hval_create(type hval_type)
 {
 	hval *hv = malloc(sizeof(hval));
 	hv->type = hval_type;
+	hv->refs = 1;
+	printf("hval_create: %p\n", hv);
 	return hv;
+}
+
+void hval_retain(hval *hv)
+{
+	hv->refs++;
+	printf("hval_retain: %p: %d\n", hv, hv->refs);
+}
+
+void hval_release(hval *hv)
+{
+	hv->refs--;
+	printf("hval_release: %p: %d\n", hv, hv->refs);
+	if (hv->refs == 0)
+	{
+		hval_destroy(hv);	
+	}
 }
 
 void hval_destroy(hval *hv)
 {
+
 	switch (hv->type)
 	{
 		case string_t:
@@ -213,10 +262,10 @@ void hval_destroy(hval *hv)
 			hv->value.str = NULL;
 			break;
 		case list_t:
-			ll_destroy(hv->value.list, (destructor) hval_destroy);
+			ll_destroy(hv->value.list, (destructor) hval_release);
 			break;
 		case hash_t:
-			hash_destroy(hv->value.hash.members, (destructor) hstr_release, (destructor)hval_destroy);
+			hash_destroy(hv->value.hash.members, (destructor) hstr_release, (destructor)hval_release);
 			hv->value.hash.members = NULL;
 			break;
 	}

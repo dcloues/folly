@@ -46,10 +46,18 @@ void runtime_destroy(runtime *r)
 {
 	if (r)
 	{ 
+		if (r->last_result)
+		{
+			/*hval_release(r->last_result);*/
+		}
+
 		if (r->tokens)
 		{
 			ll_destroy(r->tokens, (destructor) token_destroy);
 		}
+
+		hval_release(r->top_level);
+		r->top_level = NULL;
 		free(r);
 	}
 }
@@ -70,6 +78,7 @@ static void register_top_level(runtime *r)
 		hstr *name = hstr_create(f->name);
 		hval *fun = hval_native_function_create(f->fn);
 		hval_hash_put(r->top_level, name, fun);
+		hval_release(fun);
 		hstr_release(name);
 	}
 }
@@ -102,14 +111,20 @@ hval *runtime_eval_loop(runtime *runtime)
 	hval *context = hval_hash_create_child(runtime->top_level);
 	token *tok = NULL;
 	
-	hval *last_result;
+	hval *last_result = NULL, *result = NULL;
 	while (tok = runtime_get_next_token(runtime))
 	{
 		printf("processing token: %p\n", tok);
 		char *str = token_to_string(tok);
 		printf("evaluating token: %s\n", str);
 		free(str);
-		last_result = runtime_eval_token(tok, runtime, context, last_result);
+		result = runtime_eval_token(tok, runtime, context, last_result);
+		if (last_result)
+		{
+			/*hval_release(last_result);*/
+		}
+
+		last_result = result;
 	}
 
 	printf("runtime_eval_loop terminating. context:\n");
@@ -171,7 +186,7 @@ hval *runtime_eval_hash(token *tok, runtime *runtime, hval *context)
 
 		expect_token(tok, identifier);
 		// TODO pass a separate lookup context so variables can be resolved
-		runtime_assignment(tok, runtime, context, h);
+		hval *value = runtime_assignment(tok, runtime, context, h);
 	}
 
 	printf("runtime_eval_hash\n");
@@ -183,10 +198,12 @@ static hval *runtime_eval_list(runtime *runtime, hval *context)
 {
 	hval *list = hval_list_create();
 	token *t = runtime_get_next_token(runtime);
-	linked_list *l = list->value.list;
 	while (t->type != list_end)
 	{
-		ll_insert_tail(l, runtime_eval_token(t, runtime, context, NULL));
+		hval *val = runtime_eval_token(t, runtime, context, NULL);
+		hval_list_insert_tail(list, val);
+		hval_release(val);
+		val = NULL;
 		t = runtime_get_next_token(runtime);
 	}
 
@@ -229,9 +246,6 @@ hval *runtime_assignment(token *name_token, runtime *runtime, hval *context, hva
 	runtime_get_next_token(runtime);
 	token *next_token = runtime_get_next_token(runtime);
 	hval *value = runtime_eval_token(next_token, runtime, context, NULL);
-	/*char *name = malloc(strlen(name_token->value.string) + 1);*/
-
-	/*strcpy(name, name_token->value.string);*/
 	hval_hash_put(target, token_string(name_token), value);
 	return value;
 }

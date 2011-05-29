@@ -18,7 +18,7 @@ int main(int argc, char **argv)
 	runtime_destroy(r);
 	r = NULL;
 
-	hval_destroy(ctx);
+	hval_release(ctx);
 
 	return 0;
 }
