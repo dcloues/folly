@@ -15,7 +15,7 @@ runtime *runtime_create();
 void runtime_destroy();
 hval *runtime_eval(runtime *runtime, char *file);
 hval *runtime_eval_token(token *token, runtime *runtime, hval *context, hval *last_result);
-hval *runtime_eval_identifier(token *token, runtime *runtime, hval *context, hval *parent);
+hval *runtime_eval_identifier(token *token, runtime *runtime, hval *context);
 
 #endif
 

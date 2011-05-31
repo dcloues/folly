@@ -149,10 +149,10 @@ hval *runtime_eval_token(token *tok, runtime *runtime, hval *context, hval *last
 	{
 		case dereference:
 			deref_name = runtime_get_next_token(runtime);
-			result = runtime_eval_identifier(deref_name, runtime, runtime->last_result, last_result);
+			result = runtime_eval_identifier(deref_name, runtime, runtime->last_result);
 			break;
 		case identifier:
-			result = runtime_eval_identifier(tok, runtime, context, context);
+			result = runtime_eval_identifier(tok, runtime, context);
 			break;
 		case hash_start:
 			result = runtime_eval_hash(tok, runtime, context);
@@ -210,10 +210,9 @@ static hval *runtime_eval_list(runtime *runtime, hval *context)
 	return list;
 }
 
-hval *runtime_eval_identifier(token *tok, runtime *runtime, hval *context, hval *parent)
+hval *runtime_eval_identifier(token *tok, runtime *runtime, hval *context)
 {
 	token *next_token = runtime_peek_token(runtime);
-	/*hval *real_target = runtime->last_result ? runtime->last_result : context;*/
 	if (next_token->type == assignment)
 	{
 		return runtime_assignment(tok, runtime, context, context);
@@ -233,6 +232,14 @@ hval *runtime_eval_identifier(token *tok, runtime *runtime, hval *context, hval 
 		arguments = NULL;
 
 		return result;
+	}
+	else if (next_token->type == dereference)
+	{
+		hval *value = hval_hash_get(context, token_string(tok));
+		runtime_get_next_token(runtime);
+		next_token = runtime_get_next_token(runtime);
+		runtime->last_result = value;
+		return runtime_eval_identifier(next_token, runtime, value);
 	}
 	else
 	{
