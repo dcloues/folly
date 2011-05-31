@@ -67,6 +67,23 @@ static void register_top_level(runtime *r)
 {
 	hlog("Registering top levels\n");
 	int i = 0;
+	
+	hval *io = hval_hash_create();
+	hstr *io_str = hstr_create("io");
+	hval_hash_put(r->top_level, io_str, io);
+	hstr_release(io_str);
+	io_str = NULL;
+
+	hval *print = hval_native_function_create(native_print);
+	hstr *str = hstr_create("print");
+	hval_hash_put(io, str, print);
+
+	hstr_release(str);
+	str = NULL;
+	hval_release(print);
+	print = NULL;
+
+/*
 	while (true)
 	{
 		native_function_declaration *f = top_levels + i;
@@ -82,6 +99,7 @@ static void register_top_level(runtime *r)
 		hval_release(fun);
 		hstr_release(name);
 	}
+*/
 }
 
 hval *runtime_eval(runtime *runtime, char *file)

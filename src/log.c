@@ -28,6 +28,7 @@ void hlog(char *fmt, ...)
 	va_list args;
 	va_start(args, fmt);
 	vfprintf(logfile ? logfile : stderr, fmt, args);
+	fflush(logfile ? logfile : stderr);
 	va_end(args);
 }
 
