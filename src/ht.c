@@ -11,7 +11,7 @@ hash *hash_create(hash_function hash_func, key_comparator comp)
 	hash *h = malloc(sizeof(hash));
 	if (h == NULL)
 	{
-		perror("Unable to allocate memory for hash");
+		hlog("Unable to allocate memory for hash");
 	} else {
 		h->buckets = 32;
 		h->table = malloc(sizeof(hash_entry) * h->buckets);
@@ -23,7 +23,7 @@ hash *hash_create(hash_function hash_func, key_comparator comp)
 
 		if (h->table == NULL)
 		{
-			perror("Unable to allocate memory for hash table");
+			hlog("Unable to allocate memory for hash table");
 			// don't return a half-ready table
 			free(h);
 			h = NULL;
@@ -61,7 +61,7 @@ void hash_entry_destroy(hash_entry *entry, destructor key_dtor, destructor value
 
 	hash_entry_destroy(entry->next, key_dtor, value_dtor, false);
 	key_dtor(entry->key);
-	printf("hash_entry_destroy key, value: %p %p\n", entry->key, entry->value);
+	hlog("hash_entry_destroy key, value: %p %p\n", entry->key, entry->value);
 	value_dtor(entry->value);
 
 	if (!top_level)
@@ -144,7 +144,7 @@ void *hash_remove(hash *hash, void *key)
 	hash_entry *ent = hash->table + i;
 	if (!ent->key)
 	{
-		perror("key not found!");
+		hlog("key not found!");
 		return NULL;
 	}
 
@@ -203,12 +203,12 @@ void hash_iterate(hash *h, key_value_callback callback, void *ctx)
 
 void hash_dump(hash *hash, char *(*key_to_string)(void *), char *(*value_to_string)(void *))
 {
-	printf("hash: size=%d with %d buckets\n", hash->size, hash->buckets);
+	hlog("hash: size=%d with %d buckets\n", hash->size, hash->buckets);
 	for (int i=0; i < hash->buckets; i++)
 	{
 		if (hash->table[i].key)
 		{
-			printf("%04d:", i);
+			hlog("%04d:", i);
 			hash_entry *entry = hash->table + i;
 			do
 			{
@@ -216,7 +216,7 @@ void hash_dump(hash *hash, char *(*key_to_string)(void *), char *(*value_to_stri
 						? key_to_string(entry->key)
 						: (char *) entry->key;
 				
-				printf("key: %s\n", key_str);
+				hlog("key: %s\n", key_str);
 				if (key_to_string)
 				{
 					free(key_str);
@@ -226,7 +226,7 @@ void hash_dump(hash *hash, char *(*key_to_string)(void *), char *(*value_to_stri
 				char *val_str = value_to_string
 						? value_to_string(entry->value)
 						: (char *) entry->value;
-				printf(" %d: %s", hash->hasher(entry->key), val_str);
+				hlog(" %d: %s", hash->hasher(entry->key), val_str);
 				if (value_to_string)
 				{
 					free(val_str);
@@ -234,7 +234,7 @@ void hash_dump(hash *hash, char *(*key_to_string)(void *), char *(*value_to_stri
 				}
 				entry = entry->next;
 			} while (entry);
-			printf("\n");
+			hlog("\n");
 		}
 
 	}

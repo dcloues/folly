@@ -69,7 +69,6 @@ void buffer_ensure_additional_capacity(buffer *buffer, int additional_capacity)
 char buffer_peek(buffer *buffer)
 {
 	char val = buffer->len ? buffer->data[buffer->len-1] : '\0';
-	/*printf("buffer_peek: %d chars, last is %c\n", buffer->len, val);*/
 	return val;
 }
 
@@ -84,7 +83,7 @@ char *buffer_to_string(buffer *buffer)
 char *buffer_substring(buffer *buf, int offset, int len)
 {
 	if (offset + len > buf->capacity) {
-		perror("Asked for substring outside of buffer bounds");
+		hlog("Asked for substring outside of buffer bounds");
 		exit(1);
 	}
 	

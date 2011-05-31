@@ -52,7 +52,7 @@ hval *hval_hash_create(void)
 
 hval *hval_hash_create_child(hval *parent)
 {
-	printf("hval_hash_create_child\n");
+	hlog("hval_hash_create_child\n");
 	hval *hv = hval_hash_create();
 	hstr *key = hstr_create("__parent__");
 	hval_hash_put(hv, key, parent);
@@ -62,10 +62,10 @@ hval *hval_hash_create_child(hval *parent)
 
 hval *hval_hash_get(hval *hv, hstr *key)
 {
-	printf("hval_hash_get: %s (%p)\n", key->str, hv);
+	hlog("hval_hash_get: %s (%p)\n", key->str, hv);
 	if (hv == NULL)
 	{
-		printf("NULL hash - returning\n");
+		hlog("NULL hash - returning\n");
 		return NULL;
 	}
 
@@ -74,7 +74,7 @@ hval *hval_hash_get(hval *hv, hstr *key)
 	if (val == NULL)
 	{
 		char *dump_str = hval_to_string(hv);
-		fprintf(stderr, "%s not found in %s\n", key->str, dump_str);
+		hlog("%s not found in %s\n", key->str, dump_str);
 		free(dump_str);
 		hstr *parent_key = hstr_create("__parent__");
 		val = hval_hash_get(hash_get(h, parent_key), key);
@@ -87,7 +87,7 @@ hval *hval_hash_get(hval *hv, hstr *key)
 hval *hval_hash_put(hval *hv, hstr *key, hval *value)
 {
 	// TODO Handle overwrite/cleanup
-	printf("hval_hash_put: %s\n", key->str);
+	hlog("hval_hash_put: %s\n", key->str);
 	hstr_retain(key);
 	if (value != NULL)
 	{
@@ -232,20 +232,20 @@ hval *hval_create(type hval_type)
 	hval *hv = malloc(sizeof(hval));
 	hv->type = hval_type;
 	hv->refs = 1;
-	printf("hval_create: %p\n", hv);
+	hlog("hval_create: %p\n", hv);
 	return hv;
 }
 
 void hval_retain(hval *hv)
 {
 	hv->refs++;
-	printf("hval_retain: %p: %d\n", hv, hv->refs);
+	hlog("hval_retain: %p: %d\n", hv, hv->refs);
 }
 
 void hval_release(hval *hv)
 {
 	hv->refs--;
-	printf("hval_release: %p: %d\n", hv, hv->refs);
+	hlog("hval_release: %p: %d\n", hv, hv->refs);
 	if (hv->refs == 0)
 	{
 		hval_destroy(hv);	

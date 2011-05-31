@@ -12,7 +12,7 @@ char *fmt(char *format, ...)
 
 	if ((str = malloc(size)) == NULL)
 	{
-		perror("malloc failed in fmt");
+		hlog("malloc failed in fmt");
 		return NULL;
 	}
 

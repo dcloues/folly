@@ -4,6 +4,7 @@
 #include "runtime.h"
 #include "lexer.h"
 #include "linked_list.h"
+#include "log.h"
 #include "type.h"
 #include "ht.h"
 #include "str.h"
@@ -37,7 +38,7 @@ runtime *runtime_create()
 	runtime *r = malloc(sizeof(runtime));
 	r->current = NULL;
 	r->top_level = hval_hash_create();
-	fprintf(stderr, "top_level: %p\n", r->top_level);
+	hlog("top_level: %p\n", r->top_level);
 	register_top_level(r);
 	return r;
 }
@@ -64,7 +65,7 @@ void runtime_destroy(runtime *r)
 
 static void register_top_level(runtime *r)
 {
-	perror("Registering top levels\n");
+	hlog("Registering top levels\n");
 	int i = 0;
 	while (true)
 	{
@@ -74,7 +75,7 @@ static void register_top_level(runtime *r)
 			break;
 		}
 
-		printf("registering top level function: %s\n", f->name);
+		hlog("registering top level function: %s\n", f->name);
 		hstr *name = hstr_create(f->name);
 		hval *fun = hval_native_function_create(f->fn);
 		hval_hash_put(r->top_level, name, fun);
@@ -114,9 +115,9 @@ hval *runtime_eval_loop(runtime *runtime)
 	hval *last_result = NULL, *result = NULL;
 	while (tok = runtime_get_next_token(runtime))
 	{
-		printf("processing token: %p\n", tok);
+		hlog("processing token: %p\n", tok);
 		char *str = token_to_string(tok);
-		printf("evaluating token: %s\n", str);
+		hlog("evaluating token: %s\n", str);
 		free(str);
 		result = runtime_eval_token(tok, runtime, context, last_result);
 		if (last_result)
@@ -127,7 +128,7 @@ hval *runtime_eval_loop(runtime *runtime)
 		last_result = result;
 	}
 
-	printf("runtime_eval_loop terminating. context:\n");
+	hlog("runtime_eval_loop terminating. context:\n");
 	hash_dump(context->value.hash.members, (void *)hstr_to_str, (void *) hval_to_string);
 
 	return context;
@@ -137,7 +138,7 @@ hval *runtime_eval_token(token *tok, runtime *runtime, hval *context, hval *last
 {
 #ifdef DEBUG_EVAL_TOKEN
 	char *s = token_to_string(tok);
-	printf("runtime_eval_token: %s\n", s);
+	hlog("runtime_eval_token: %s\n", s);
 	free(s);
 #endif
 
@@ -166,7 +167,7 @@ hval *runtime_eval_token(token *tok, runtime *runtime, hval *context, hval *last
 			result = runtime_eval_list(runtime, context);
 			break;
 		default:
-			printf("unhandled token\n");
+			hlog("unhandled token\n");
 	}
 
 	runtime->last_result = result;
@@ -189,8 +190,7 @@ hval *runtime_eval_hash(token *tok, runtime *runtime, hval *context)
 		hval *value = runtime_assignment(tok, runtime, context, h);
 	}
 
-	printf("runtime_eval_hash\n");
-	hash_dump(h->value.hash.members, (char * (*)(void *))hstr_to_str, (char * (*)(void *))hval_to_string);
+	/*hash_dump(h->value.hash.members, (char * (*)(void *))hstr_to_str, (char * (*)(void *))hval_to_string);*/
 	return h;
 }
 
@@ -225,7 +225,7 @@ hval *runtime_eval_identifier(token *tok, runtime *runtime, hval *context, hval 
 		hval *arguments = runtime_eval_list(runtime, context);
 		if (function == NULL)
 		{
-			fprintf(stderr, "no function %s\n", token_string(tok)->str);
+			hlog("no function %s\n", token_string(tok)->str);
 			return NULL;
 		}
 		hval *result = runtime_apply_function(runtime, function, arguments);
@@ -254,7 +254,7 @@ static hval *runtime_apply_function(runtime *runtime, hval *function, hval *argu
 {
 	if (function->type != native_function_t)
 	{
-		perror("unexpected type");
+		hlog("unexpected type");
 		exit(1);
 	}
 
@@ -288,7 +288,7 @@ static void *expect_token(token *t, type token_type)
 {
 	if (!t || token_type != t->type)
 	{
-		fprintf(stderr, "Error: unexpected %s (expected %s)",
+		hlog("Error: unexpected %s (expected %s)",
 			token_type_string_token(t),
 			token_type_string(token_type));
 	}
@@ -296,7 +296,6 @@ static void *expect_token(token *t, type token_type)
 
 static hval *native_print(hval *this, hval *args)
 {
-	printf("------------------- print ----------------------\n");
 	char *str = hval_to_string(args);
 	puts(str);
 	free(str);

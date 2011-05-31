@@ -3,6 +3,7 @@
 #include <string.h>
 #include <stdio.h>
 #include "lexer.h"
+#include "log.h"
 #include "buffer.h"
 
 size_t token_string_size(token *token);
@@ -53,7 +54,7 @@ token *token_create(token_type type)
 {
 	token *t = malloc(sizeof(token));
 	if (!t) {
-		perror("Unable to allocate memory for token");
+		hlog("Unable to allocate memory for token");
 		exit(1);
 	}
 
@@ -170,7 +171,7 @@ token* get_next_token(FILE *fh)
 
 		if (!matched)
 		{
-			printf("Error: unexpected %c' (%d)", c, ch);
+			hlog("Error: unexpected %c' (%d)", c, ch);
 			exit(1);
 		}
 		else if (r->read_token)
