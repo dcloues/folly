@@ -4,6 +4,7 @@
 #include <stdio.h>
 #include <string.h>
 #include "buffer.h"
+#include "log.h"
 
 buffer *buffer_create(const int initial_capacity)
 {
@@ -48,6 +49,7 @@ void buffer_ensure_capacity(buffer *buffer, int new_capacity)
 {
 	if (new_capacity + 1 > buffer->capacity) {
 		char *resized = realloc(buffer->data, buffer->capacity * 2);
+		hlog("buffer_ensure_capacity: %p -> %p\n", buffer->data, resized);
 		if (resized)
 		{
 			buffer->data = resized;
@@ -100,12 +102,13 @@ void buffer_printf(buffer *b, char *fmt, ...)
 	}
 
 	int size = 0;
-	char *str = b->data + b->len;
 	int n = 0;
+	char *str = NULL;
 	va_list args;
 
 	while (true)
 	{
+		str = b->data + b->len;
 		size = buffer_capacity(b);
 		va_start(args, fmt);
 		n = vsnprintf(str, size, fmt, args);

@@ -1,2 +1,2 @@
-a: {b: "c"}
+a: {b: "this is the property"}
 print(a.b)
