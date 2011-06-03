@@ -13,6 +13,7 @@ hval *runtime_eval_loop(runtime *runtime);
 hval *runtime_eval_hash(token *tok, runtime *runtime, hval *context);
 hval *runtime_assignment(token *name, runtime *runtime, hval *context, hval *target);
 void runtime_parse(runtime *runtime, char *file);
+expression *runtime_analyze(runtime *);
 token *runtime_peek_token(runtime *runtime);
 token *runtime_get_next_token(runtime *runtime);
 static void *expect_token(token *t, type token_type);
@@ -20,7 +21,21 @@ static void register_top_level(runtime *);
 static hval *runtime_eval_list(runtime *runtime, hval *context);
 static hval *runtime_apply_function(runtime *runtime, hval *function, hval *arguments);
 
+static expression *expr_create(expression_type);
+static expression *read_complete_expression(runtime *);
+static expression *read_identifier(runtime *);
+static expression *read_number(runtime *);
+static expression *read_string(runtime *);
+
+static hval *runtime_evaluate_expression(runtime *, expression *, hval *);
+static hval *eval_prop_ref(runtime *, prop_ref *, hval *);
+static hval *eval_prop_set(runtime *, prop_set *, hval *);
+static hval *eval_expr_list(runtime *, linked_list *, hval *);
+
+static hval *get_prop_ref_site(runtime *, prop_ref *, hval *);
+
 static hval *native_print(hval *this, hval *args);
+#define runtime_current_token(rt) ((token *) rt->current->data)
 
 typedef struct {
 	char *name;
@@ -82,31 +97,17 @@ static void register_top_level(runtime *r)
 	str = NULL;
 	hval_release(print);
 	print = NULL;
-
-/*
-	while (true)
-	{
-		native_function_declaration *f = top_levels + i;
-		++i;
-		if (f->name == NULL) {
-			break;
-		}
-
-		hlog("registering top level function: %s\n", f->name);
-		hstr *name = hstr_create(f->name);
-		hval *fun = hval_native_function_create(f->fn);
-		hval_hash_put(r->top_level, name, fun);
-		hval_release(fun);
-		hstr_release(name);
-	}
-*/
 }
 
 hval *runtime_eval(runtime *runtime, char *file)
 {
 	runtime_parse(runtime, file);
+	expression *expr = runtime_analyze(runtime);
+	hval *context = hval_hash_create_child(runtime->top_level);
+	runtime_evaluate_expression(runtime, expr, context);
 
-	hval *context = runtime_eval_loop(runtime);
+	/*hval *context = runtime_eval_loop(runtime);*/
+	/*return context;*/
 	return context;
 }
 
@@ -123,6 +124,206 @@ void runtime_parse(runtime *runtime, char *file)
 	runtime->tokens = tokens;
 
 	fclose(fh);
+}
+
+expression *runtime_analyze(runtime *rt)
+{
+	token *t = NULL;
+	expression *expr_list = malloc(sizeof(expression));
+	if (expr_list == NULL)
+	{
+		perror("Unable to allocate memory for expr_list");
+		exit(1);
+	}
+
+	expr_list->type = expr_list_t;
+	expr_list->operation.expr_list = ll_create();
+
+	expression *expr = NULL;
+	while ((t = runtime_get_next_token(rt)) != NULL)
+	{
+		expr = read_complete_expression(rt);
+		if (expr == NULL)
+		{
+			hlog("got a null expression - failing");
+			exit(1);
+		}
+		ll_insert_tail(expr_list->operation.expr_list, expr);
+	}
+
+	return expr_list;
+}
+
+expression *read_complete_expression(runtime *rt)
+{
+	expression *expr = NULL;
+	token_type tt = ((token *) rt->current->data)->type;
+
+	switch (tt)
+	{
+		case identifier:
+			expr = read_identifier(rt);
+			break;
+		case number:
+			expr = read_number(rt);
+			break;
+		case string:
+			expr = read_string(rt);
+			break;
+	}
+
+	return expr;
+}
+
+expression *read_identifier(runtime *rt)
+{
+	expression *expr = NULL;
+
+	token *t = rt->current->data;
+	prop_ref *ref = malloc(sizeof(prop_ref));
+	if (ref == NULL)
+	{
+		perror("read_identifier unable to allocate memory for prop_ref");
+		exit(1);
+	}
+
+	ref->name = t->value.string;
+	ref->site = NULL;
+	hstr_retain(t->value.string);
+
+	token *next = runtime_peek_token(rt);
+	if (next->type == assignment) {
+		// consume the assignment and advance to the next
+		runtime_get_next_token(rt);
+		runtime_get_next_token(rt);
+		expression *assgn = expr_create(expr_prop_set_t);
+		assgn->operation.prop_set = malloc(sizeof(prop_set));
+		assgn->operation.prop_set->ref = ref;
+		assgn->operation.prop_set->value = read_complete_expression(rt);
+		expr = assgn;
+	} else if (next->type == dereference) {
+		// consume the assignment and advance to the next
+		runtime_get_next_token(rt);
+		runtime_get_next_token(rt);
+		expression *deref = read_complete_expression(rt);
+
+		expression *deref_site = expr_create(expr_prop_ref_t);
+		deref_site->operation.prop_ref = ref;
+	
+		deref->operation.prop_ref->site = deref_site;
+		expr = deref;
+	} else {
+		expr = expr_create(expr_prop_ref_t);
+		expr->operation.prop_ref = ref;
+	}
+
+	return expr;
+}
+
+expression *expr_create(expression_type type)
+{
+	expression *expr = malloc(sizeof(expression));
+	if (expr == NULL)
+	{
+		perror("Unable to allocate memory for expression");
+		exit(1);
+	}
+	expr->type = type;
+
+	return expr;
+}
+
+expression *read_string(runtime *rt)
+{
+	token *t = runtime_current_token(rt);
+	expression *expr = expr_create(expr_primitive_t);
+	expr->operation.primitive = hval_string_create(t->value.string);
+	return expr;
+}
+
+expression *read_number(runtime *rt)
+{
+	token *t = runtime_current_token(rt);
+	expression *expr = expr_create(expr_primitive_t);
+	expr->operation.primitive = hval_number_create(t->value.number);
+	return expr;
+}
+
+static hval *runtime_evaluate_expression(runtime *rt, expression *expr, hval *context)
+{
+	switch (expr->type)
+	{
+		case expr_prop_ref_t:
+			return eval_prop_ref(rt, expr->operation.prop_ref, context);
+		case expr_prop_set_t:
+			return eval_prop_set(rt, expr->operation.prop_set, context);
+		case expr_list_t:
+			return eval_expr_list(rt, expr->operation.expr_list, context);
+		case expr_primitive_t:
+			return expr->operation.primitive;
+		default:
+			hlog("Error: unknown expression type");
+			exit(1);
+	}
+}
+
+static hval *eval_expr_list(runtime *rt, linked_list *expr_list, hval *context)
+{
+	hval *result = NULL, *new_result = NULL;	
+	ll_node *current = expr_list->head;
+	expression *expr = NULL;
+	while (current)
+	{
+		expr = (expression *) current->data;
+		new_result = runtime_evaluate_expression(rt, expr, context);
+		if (result != NULL)
+		{
+			hval_release(result);
+		}
+
+		result = new_result;
+		current = current->next;
+	}
+
+	return result;
+}
+
+static hval *eval_prop_ref(runtime *rt, prop_ref *ref, hval *context)
+{
+	hval *site = get_prop_ref_site(rt, ref, context);
+	if (site->type != hash_t)
+	{
+		hlog("eval_prop_ref expected a hash");
+		exit(1);
+	}
+
+	return hval_hash_get(site, ref->name);
+}
+
+static hval *eval_prop_set(runtime *rt, prop_set *set, hval *context)
+{
+	hval *site = get_prop_ref_site(rt, set->ref, context);
+	if (site->type != hash_t)
+	{
+		hlog("eval_prop_set expected a hash");
+		exit(1);
+	}
+
+	hval *value = runtime_evaluate_expression(rt, set->value, context);
+	hval_hash_put(site, set->ref->name, value);
+	return value;
+}
+
+static hval *get_prop_ref_site(runtime *rt, prop_ref *ref, hval *context)
+{
+	if (ref->site != NULL)
+	{
+		return runtime_evaluate_expression(rt, ref->site, context);
+	}
+	else
+	{
+		return context;
+	}
 }
 
 hval *runtime_eval_loop(runtime *runtime)
