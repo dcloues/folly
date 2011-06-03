@@ -22,6 +22,8 @@ static hval *runtime_eval_list(runtime *runtime, hval *context);
 static hval *runtime_apply_function(runtime *runtime, hval *function, hval *arguments);
 
 static expression *expr_create(expression_type);
+static void expr_destroy(expression *expr);
+static void prop_ref_destroy(prop_ref *ref);
 static expression *read_complete_expression(runtime *);
 static expression *read_identifier(runtime *);
 static expression *read_number(runtime *);
@@ -86,6 +88,7 @@ static void register_top_level(runtime *r)
 	hval *io = hval_hash_create();
 	hstr *io_str = hstr_create("io");
 	hval_hash_put(r->top_level, io_str, io);
+	hval_release(io);
 	hstr_release(io_str);
 	io_str = NULL;
 
@@ -102,9 +105,13 @@ static void register_top_level(runtime *r)
 hval *runtime_eval(runtime *runtime, char *file)
 {
 	runtime_parse(runtime, file);
+	// this will have type=expr_list_t
 	expression *expr = runtime_analyze(runtime);
 	hval *context = hval_hash_create_child(runtime->top_level);
-	runtime_evaluate_expression(runtime, expr, context);
+	hval *ret = runtime_evaluate_expression(runtime, expr, context);
+	expr_destroy(expr);
+	expr = NULL;
+	hval_destroy(ret);
 
 	/*hval *context = runtime_eval_loop(runtime);*/
 	/*return context;*/
@@ -233,6 +240,44 @@ expression *expr_create(expression_type type)
 	return expr;
 }
 
+static void expr_destroy(expression *expr)
+{
+	switch (expr->type)
+	{
+		case expr_prop_ref_t:
+			prop_ref_destroy(expr->operation.prop_ref);
+			break;
+		case expr_prop_set_t:
+			prop_ref_destroy(expr->operation.prop_set->ref);
+			expr_destroy(expr->operation.prop_set->value);
+			free(expr->operation.prop_set);
+			break;
+		case expr_list_t:
+			ll_destroy(expr->operation.expr_list, (destructor) expr_destroy);
+			break;
+		case expr_primitive_t:
+			hval_release(expr->operation.primitive);
+			break;
+		default:
+			hlog("ERROR: unexpected type passed to expr_destroy");
+			break;
+	}
+
+	free(expr);
+}
+
+static void prop_ref_destroy(prop_ref *ref)
+{
+	if (ref->site)
+	{
+		expr_destroy(ref->site);
+	}
+
+	hstr_release(ref->name);
+	free(ref);
+}
+
+
 expression *read_string(runtime *rt)
 {
 	token *t = runtime_current_token(rt);
@@ -260,6 +305,7 @@ static hval *runtime_evaluate_expression(runtime *rt, expression *expr, hval *co
 		case expr_list_t:
 			return eval_expr_list(rt, expr->operation.expr_list, context);
 		case expr_primitive_t:
+			hval_retain(expr->operation.primitive);
 			return expr->operation.primitive;
 		default:
 			hlog("Error: unknown expression type");
@@ -297,7 +343,9 @@ static hval *eval_prop_ref(runtime *rt, prop_ref *ref, hval *context)
 		exit(1);
 	}
 
-	return hval_hash_get(site, ref->name);
+	hval *val = hval_hash_get(site, ref->name);
+	/*hval_retain(val);*/
+	return val;
 }
 
 static hval *eval_prop_set(runtime *rt, prop_set *set, hval *context)
@@ -311,6 +359,7 @@ static hval *eval_prop_set(runtime *rt, prop_set *set, hval *context)
 
 	hval *value = runtime_evaluate_expression(rt, set->value, context);
 	hval_hash_put(site, set->ref->name, value);
+	/*hval_retain(value);*/
 	return value;
 }
 
