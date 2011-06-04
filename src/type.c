@@ -87,7 +87,7 @@ hval *hval_hash_get(hval *hv, hstr *key)
 hval *hval_hash_put(hval *hv, hstr *key, hval *value)
 {
 	// TODO Handle overwrite/cleanup
-	hlog("hval_hash_put: %s\n", key->str);
+	hlog("hval_hash_put: %s %p -> %p", key->str, key, value);
 	hstr_retain(key);
 	if (value != NULL)
 	{
@@ -232,7 +232,7 @@ hval *hval_create(type hval_type)
 	hval *hv = malloc(sizeof(hval));
 	hv->type = hval_type;
 	hv->refs = 1;
-	hlog("hval_create: %p\n", hv);
+	hlog("hval_create: %p: %s\n", hv, hval_type_string(hval_type));
 	return hv;
 }
 
@@ -245,7 +245,7 @@ void hval_retain(hval *hv)
 void hval_release(hval *hv)
 {
 	hv->refs--;
-	hlog("hval_release: %p: %d\n", hv, hv->refs);
+	hlog("hval_release: %p %d\n", hv, hv->refs);
 	if (hv->refs == 0)
 	{
 		hval_destroy(hv);	
