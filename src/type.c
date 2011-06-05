@@ -247,7 +247,7 @@ void hval_retain(hval *hv)
 void hval_release(hval *hv)
 {
 	hv->refs--;
-	//hlog("hval_release: %p %d\n", hv, hv->refs);
+	hlog("hval_release: %p %d\n", hv, hv->refs);
 	if (hv->refs == 0)
 	{
 		hval_destroy(hv);	

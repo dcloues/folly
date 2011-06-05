@@ -85,16 +85,16 @@ static void register_top_level(runtime *r)
 	hlog("Registering top levels\n");
 	int i = 0;
 	
-	/*hval *io = hval_hash_create();*/
-	/*hstr *io_str = hstr_create("io");*/
-	/*hval_hash_put(r->top_level, io_str, io);*/
-	/*hval_release(io);*/
-	/*hstr_release(io_str);*/
-	/*io_str = NULL;*/
+	hval *io = hval_hash_create();
+	hstr *io_str = hstr_create("io");
+	hval_hash_put(r->top_level, io_str, io);
+	hval_release(io);
+	hstr_release(io_str);
+	io_str = NULL;
 
 	hval *print = hval_native_function_create(native_print);
 	hstr *str = hstr_create("print");
-	hval_hash_put(r->top_level, str, print);
+	hval_hash_put(io, str, print);
 
 	hstr_release(str);
 	str = NULL;
@@ -220,13 +220,13 @@ expression *read_identifier(runtime *rt)
 		// consume the assignment and advance to the next
 		runtime_get_next_token(rt);
 		runtime_get_next_token(rt);
-		expression *deref = read_complete_expression(rt);
-
-		expression *deref_site = expr_create(expr_prop_ref_t);
-		deref_site->operation.prop_ref = ref;
-	
-		deref->operation.prop_ref->site = deref_site;
-		expr = deref;
+		expr = read_complete_expression(rt);
+		expression *parent = expr_create(expr_prop_ref_t);
+		parent->operation.prop_ref = ref;
+		if (expr->type == expr_invocation_t)
+		{
+			expr->operation.invocation->function->operation.prop_ref->site = parent;
+		}
 	} else if (next->type == list_start) {
 		runtime_get_next_token(rt);
 		expr = expr_create(expr_invocation_t);
@@ -237,7 +237,9 @@ expression *read_identifier(runtime *rt)
 			exit(1);
 		}
 		
-		inv->function = ref;
+		expression *func = expr_create(expr_prop_ref_t);
+		func->operation.prop_ref = ref;
+		inv->function = func;
 		inv->list_args = read_list(rt);
 		expr->operation.invocation = inv;
 	} else {
@@ -285,7 +287,7 @@ static void expr_destroy(expression *expr)
 			break;
 		case expr_invocation_t:
 			expr_destroy(expr->operation.invocation->list_args);
-			prop_ref_destroy(expr->operation.invocation->function);
+			expr_destroy(expr->operation.invocation->function);
 			free(expr->operation.invocation);
 			break;
 		default:
@@ -404,9 +406,6 @@ static hval *eval_expr_list_literal(runtime *rt, expression *expr_list, hval *co
 	{
 		expr = (expression *) current->data;
 		result = runtime_evaluate_expression(rt, expr, context);
-		char *str = hval_to_string(result);
-		hlog("got list item: %s", str);
-		free(str);
 		hval_list_insert_tail(list, result);
 		hval_release(result);
 		result = NULL;
@@ -426,7 +425,11 @@ static hval *eval_prop_ref(runtime *rt, prop_ref *ref, hval *context)
 	}
 
 	hval *val = hval_hash_get(site, ref->name);
-	/*hval_retain(val);*/
+	hval_retain(val);
+	if (site != context)
+	{
+		hval_release(site);
+	}
 	return val;
 }
 
@@ -441,7 +444,6 @@ static hval *eval_prop_set(runtime *rt, prop_set *set, hval *context)
 
 	hval *value = runtime_evaluate_expression(rt, set->value, context);
 	hval_hash_put(site, set->ref->name, value);
-	/*hval_retain(value);*/
 	return value;
 }
 
@@ -460,7 +462,7 @@ static hval *get_prop_ref_site(runtime *rt, prop_ref *ref, hval *context)
 static hval *eval_expr_invocation(runtime *rt, invocation *inv, hval *context)
 {
 	hlog("eval_expr_invocation\n");
-	hval *fn = eval_prop_ref(rt, inv->function, context);
+	hval *fn = runtime_evaluate_expression(rt, inv->function, context);
 	if (fn == NULL)
 	{
 		return NULL;
@@ -468,6 +470,7 @@ static hval *eval_expr_invocation(runtime *rt, invocation *inv, hval *context)
 	hval *args = eval_expr_list_literal(rt, inv->list_args, context);
 	hval *result = fn->value.native_fn(NULL, args);
 	hval_release(args);
+	hval_release(fn);
 	hlog("eval_expr_invocation got result: %p\n", result);
 
 	return result;

@@ -1,1 +1,2 @@
-print("this is a test")
+value: "this is a test"
+io.print(value)
