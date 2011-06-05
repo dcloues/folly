@@ -109,9 +109,10 @@ hval *runtime_eval(runtime *runtime, char *file)
 	hval *context = hval_hash_create_child(runtime->top_level);
 	hlog("beginning evaluation\n");
 	hval *ret = runtime_evaluate_expression(runtime, expr, context);
+	hlog("runtime_eval complete - got return value %p\n", ret);
 	expr_destroy(expr);
 	expr = NULL;
-	//hval_destroy(ret);
+	hval_release(ret);
 
 	return context;
 }
@@ -303,7 +304,7 @@ static hval *runtime_evaluate_expression(runtime *rt, expression *expr, hval *co
 		case expr_list_t:
 			return eval_expr_list(rt, expr->operation.expr_list, context);
 		case expr_primitive_t:
-			/*hval_retain(expr->operation.primitive);*/
+			hval_retain(expr->operation.primitive);
 			return expr->operation.primitive;
 		default:
 			hlog("Error: unknown expression type");
@@ -320,10 +321,10 @@ static hval *eval_expr_list(runtime *rt, linked_list *expr_list, hval *context)
 	{
 		expr = (expression *) current->data;
 		new_result = runtime_evaluate_expression(rt, expr, context);
-		/*if (result != NULL)*/
-		/*{*/
-			/*hval_release(result);*/
-		/*}*/
+		if (result != NULL)
+		{
+			hval_release(result);
+		}
 
 		result = new_result;
 		current = current->next;
