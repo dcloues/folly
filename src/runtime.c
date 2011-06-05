@@ -23,11 +23,14 @@ static expression *read_complete_expression(runtime *);
 static expression *read_identifier(runtime *);
 static expression *read_number(runtime *);
 static expression *read_string(runtime *);
+static expression *read_list(runtime *);
 
 static hval *runtime_evaluate_expression(runtime *, expression *, hval *);
 static hval *eval_prop_ref(runtime *, prop_ref *, hval *);
 static hval *eval_prop_set(runtime *, prop_set *, hval *);
 static hval *eval_expr_list(runtime *, linked_list *, hval *);
+static hval *eval_expr_list_literal(runtime *, expression *, hval *);
+static hval *eval_expr_invocation(runtime *, invocation *, hval *);
 
 static hval *get_prop_ref_site(runtime *, prop_ref *, hval *);
 
@@ -82,16 +85,16 @@ static void register_top_level(runtime *r)
 	hlog("Registering top levels\n");
 	int i = 0;
 	
-	hval *io = hval_hash_create();
-	hstr *io_str = hstr_create("io");
-	hval_hash_put(r->top_level, io_str, io);
-	hval_release(io);
-	hstr_release(io_str);
-	io_str = NULL;
+	/*hval *io = hval_hash_create();*/
+	/*hstr *io_str = hstr_create("io");*/
+	/*hval_hash_put(r->top_level, io_str, io);*/
+	/*hval_release(io);*/
+	/*hstr_release(io_str);*/
+	/*io_str = NULL;*/
 
 	hval *print = hval_native_function_create(native_print);
 	hstr *str = hstr_create("print");
-	hval_hash_put(io, str, print);
+	hval_hash_put(r->top_level, str, print);
 
 	hstr_release(str);
 	str = NULL;
@@ -112,7 +115,13 @@ hval *runtime_eval(runtime *runtime, char *file)
 	hlog("runtime_eval complete - got return value %p\n", ret);
 	expr_destroy(expr);
 	expr = NULL;
-	hval_release(ret);
+	char *str = hval_to_string(ret);
+	hlog("eval got result: %s", str);
+	free(str);
+	if (ret != NULL)
+	{
+		hval_release(ret);
+	}
 
 	return context;
 }
@@ -218,6 +227,19 @@ expression *read_identifier(runtime *rt)
 	
 		deref->operation.prop_ref->site = deref_site;
 		expr = deref;
+	} else if (next->type == list_start) {
+		runtime_get_next_token(rt);
+		expr = expr_create(expr_invocation_t);
+		invocation *inv = malloc(sizeof(invocation));
+		if (inv == NULL)
+		{
+			perror("Unable to allocate memory for invocation\n");
+			exit(1);
+		}
+		
+		inv->function = ref;
+		inv->list_args = read_list(rt);
+		expr->operation.invocation = inv;
 	} else {
 		expr = expr_create(expr_prop_ref_t);
 		expr->operation.prop_ref = ref;
@@ -241,6 +263,7 @@ expression *expr_create(expression_type type)
 
 static void expr_destroy(expression *expr)
 {
+	hlog("expr_destroy %p %d\n", expr, expr->type);
 	switch (expr->type)
 	{
 		case expr_prop_ref_t:
@@ -251,11 +274,19 @@ static void expr_destroy(expression *expr)
 			expr_destroy(expr->operation.prop_set->value);
 			free(expr->operation.prop_set);
 			break;
+		case expr_list_literal_t:
+			ll_destroy(expr->operation.list_literal, (destructor) expr_destroy);
+			break;
 		case expr_list_t:
 			ll_destroy(expr->operation.expr_list, (destructor) expr_destroy);
 			break;
 		case expr_primitive_t:
 			hval_release(expr->operation.primitive);
+			break;
+		case expr_invocation_t:
+			expr_destroy(expr->operation.invocation->list_args);
+			prop_ref_destroy(expr->operation.invocation->function);
+			free(expr->operation.invocation);
 			break;
 		default:
 			hlog("ERROR: unexpected type passed to expr_destroy");
@@ -293,6 +324,30 @@ expression *read_number(runtime *rt)
 	return expr;
 }
 
+expression *read_list(runtime *rt)
+{
+	expression *list = malloc(sizeof(expression));
+	list->type = expr_list_literal_t;
+	if (list == NULL)
+	{
+		perror("Unable to allocate memory in read_list\n");
+		exit(1);
+	}
+	list->operation.list_literal = ll_create();
+
+	runtime_get_next_token(rt);
+	token *t = runtime_current_token(rt);
+	expression *expr = NULL;
+	while (t != NULL && t->type != list_end)
+	{
+		expr = read_complete_expression(rt);
+		ll_insert_tail(list->operation.list_literal, expr);
+		t = runtime_get_next_token(rt);
+	}
+
+	return list;
+}
+
 static hval *runtime_evaluate_expression(runtime *rt, expression *expr, hval *context)
 {
 	switch (expr->type)
@@ -303,9 +358,13 @@ static hval *runtime_evaluate_expression(runtime *rt, expression *expr, hval *co
 			return eval_prop_set(rt, expr->operation.prop_set, context);
 		case expr_list_t:
 			return eval_expr_list(rt, expr->operation.expr_list, context);
+		case expr_list_literal_t:
+			return eval_expr_list_literal(rt, expr, context);
 		case expr_primitive_t:
 			hval_retain(expr->operation.primitive);
 			return expr->operation.primitive;
+		case expr_invocation_t:
+			return eval_expr_invocation(rt, expr->operation.invocation, context);
 		default:
 			hlog("Error: unknown expression type");
 			exit(1);
@@ -314,6 +373,7 @@ static hval *runtime_evaluate_expression(runtime *rt, expression *expr, hval *co
 
 static hval *eval_expr_list(runtime *rt, linked_list *expr_list, hval *context)
 {
+	hlog("eval_expr_list\n");
 	hval *result = NULL, *new_result = NULL;	
 	ll_node *current = expr_list->head;
 	expression *expr = NULL;
@@ -331,6 +391,29 @@ static hval *eval_expr_list(runtime *rt, linked_list *expr_list, hval *context)
 	}
 
 	return result;
+}
+
+static hval *eval_expr_list_literal(runtime *rt, expression *expr_list, hval *context)
+{
+	hlog("eval_expr_list_literal\n");
+	hval *list = hval_list_create();
+	ll_node *current = expr_list->operation.list_literal->head;
+	expression *expr = NULL;
+	hval *result = NULL;
+	while (current)
+	{
+		expr = (expression *) current->data;
+		result = runtime_evaluate_expression(rt, expr, context);
+		char *str = hval_to_string(result);
+		hlog("got list item: %s", str);
+		free(str);
+		hval_list_insert_tail(list, result);
+		hval_release(result);
+		result = NULL;
+		current = current->next;
+	}
+
+	return list;
 }
 
 static hval *eval_prop_ref(runtime *rt, prop_ref *ref, hval *context)
@@ -374,6 +457,22 @@ static hval *get_prop_ref_site(runtime *rt, prop_ref *ref, hval *context)
 	}
 }
 
+static hval *eval_expr_invocation(runtime *rt, invocation *inv, hval *context)
+{
+	hlog("eval_expr_invocation\n");
+	hval *fn = eval_prop_ref(rt, inv->function, context);
+	if (fn == NULL)
+	{
+		return NULL;
+	}
+	hval *args = eval_expr_list_literal(rt, inv->list_args, context);
+	hval *result = fn->value.native_fn(NULL, args);
+	hval_release(args);
+	hlog("eval_expr_invocation got result: %p\n", result);
+
+	return result;
+}
+
 token *runtime_peek_token(runtime *runtime)
 {
 	return runtime->current && runtime->current->next
@@ -410,6 +509,7 @@ static void *expect_token(token *t, type token_type)
 static hval *native_print(hval *this, hval *args)
 {
 	char *str = hval_to_string(args);
+	hlog("native_print: %s\n", str);
 	puts(str);
 	free(str);
 	return NULL;

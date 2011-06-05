@@ -28,7 +28,6 @@ struct hval {
 
 void hval_retain(hval *hv);
 void hval_release(hval *hv);
-void hval_destroy(hval *hv);
 hval *hval_string_create(hstr *str);
 hval *hval_number_create(int num);
 hval *hval_list_create();

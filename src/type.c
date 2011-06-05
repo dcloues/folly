@@ -6,6 +6,7 @@
 #include "ht.h"
 #include "ht_builtins.h"
 #include "linked_list.h"
+#include "log.h"
 #include "type.h"
 
 static char *hval_hash_to_string(hash *h);
@@ -13,6 +14,7 @@ static char *hval_list_to_string(linked_list *h);
 static int hash_hstr(hstr *);
 void print_hash_member(hash *h, hstr *key, hval *value, buffer *b);
 hval *hval_create(type);
+static void hval_destroy(hval *hv);
 
 const char *hval_type_string(type t)
 {
@@ -141,7 +143,7 @@ char *hval_to_string(hval *hval)
 {
 	if (hval == NULL)
 	{
-		return "(NULL)";
+		return fmt("(null hval)");
 	}
 
 	const type t = hval->type;
@@ -252,7 +254,7 @@ void hval_release(hval *hv)
 	}
 }
 
-void hval_destroy(hval *hv)
+static void hval_destroy(hval *hv)
 {
 	//hlog("hval_destroy: %p %s\n", hv, hval_type_string(hv->type));
 	switch (hv->type)
