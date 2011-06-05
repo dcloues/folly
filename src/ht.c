@@ -1,6 +1,7 @@
 #include "ht.h"
 #include <stdio.h>
 #include <stdlib.h>
+#include "log.h"
 
 unsigned int hash_index_of(hash *hash, void *key);
 void *hash_resolve_chain(hash *hash, hash_entry *entry, void *key);
@@ -58,11 +59,19 @@ void hash_entry_destroy(hash_entry *entry, destructor key_dtor, destructor value
 	{
 		return;
 	}
+	
+	void *key = entry->key;
+	entry->key = NULL;
+	void *value = entry->value;
+	entry->value = NULL;
+	hash_entry *next = entry->next;
 
-	hash_entry_destroy(entry->next, key_dtor, value_dtor, false);
-	key_dtor(entry->key);
-	hlog("hash_entry_destroy key, value: %p %p\n", entry->key, entry->value);
-	value_dtor(entry->value);
+	hash_entry_destroy(next, key_dtor, value_dtor, false);
+	hlog("hash_entry_destroy key, value: %p %p\n", key, value);
+	if (key != NULL)
+	key_dtor(key);
+	if (value != NULL)
+	value_dtor(value);
 
 	if (!top_level)
 	{

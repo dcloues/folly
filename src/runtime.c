@@ -69,8 +69,10 @@ void runtime_destroy(runtime *r)
 			ll_destroy(r->tokens, (destructor) token_destroy);
 		}
 
+		hlog("releasing top_level\n");
 		hval_release(r->top_level);
 		r->top_level = NULL;
+		hlog("done releasing top_level\n");
 		free(r);
 	}
 }
@@ -109,7 +111,7 @@ hval *runtime_eval(runtime *runtime, char *file)
 	hval *ret = runtime_evaluate_expression(runtime, expr, context);
 	expr_destroy(expr);
 	expr = NULL;
-	hval_destroy(ret);
+	//hval_destroy(ret);
 
 	return context;
 }

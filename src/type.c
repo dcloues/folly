@@ -87,7 +87,7 @@ hval *hval_hash_get(hval *hv, hstr *key)
 hval *hval_hash_put(hval *hv, hstr *key, hval *value)
 {
 	// TODO Handle overwrite/cleanup
-	hlog("hval_hash_put: %s %p -> %p", key->str, key, value);
+	hlog("hval_hash_put: %s %p -> %p\n", key->str, key, value);
 	hstr_retain(key);
 	if (value != NULL)
 	{
@@ -258,13 +258,16 @@ void hval_destroy(hval *hv)
 	switch (hv->type)
 	{
 		case string_t:
+			hlog("hval_destroy string\n");
 			hstr_release(hv->value.str);
 			hv->value.str = NULL;
 			break;
 		case list_t:
+			hlog("hval_destroy number\n");
 			ll_destroy(hv->value.list, (destructor) hval_release);
 			break;
 		case hash_t:
+			hlog("hval_destroy hash\n");
 			hash_destroy(hv->value.hash.members, (destructor) hstr_release, (destructor)hval_release);
 			hv->value.hash.members = NULL;
 			break;

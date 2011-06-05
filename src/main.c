@@ -18,9 +18,11 @@ int main(int argc, char **argv)
 
 	runtime *r = runtime_create();
 	hval *ctx = runtime_eval(r, argv[1]);
+	hlog("calling runtime_destroy\n");
 	runtime_destroy(r);
 	r = NULL;
 
+	hlog("releasing context\n");
 	hval_release(ctx);
 
 	hlog_shutdown();
