@@ -210,11 +210,13 @@ expression *read_identifier(runtime *rt)
 	}
 
 	ref->name = t->value.string;
+	hlog("read_identifier: %s\n", t->value.string->str);
 	ref->site = NULL;
 	hstr_retain(t->value.string);
 
 	token *next = runtime_peek_token(rt);
 	if (next->type == assignment) {
+		hlog("reading assignment\n");
 		// consume the assignment and advance to the next
 		runtime_get_next_token(rt);
 		runtime_get_next_token(rt);
@@ -224,6 +226,7 @@ expression *read_identifier(runtime *rt)
 		assgn->operation.prop_set->value = read_complete_expression(rt);
 		expr = assgn;
 	} else if (next->type == dereference) {
+		hlog("reading dereference\n");
 		// consume the assignment and advance to the next
 		runtime_get_next_token(rt);
 		runtime_get_next_token(rt);
@@ -233,6 +236,10 @@ expression *read_identifier(runtime *rt)
 		if (expr->type == expr_invocation_t)
 		{
 			expr->operation.invocation->function->operation.prop_ref->site = parent;
+		}
+		else if (expr->type == expr_prop_ref_t)
+		{
+			expr->operation.prop_ref->site = parent;
 		}
 	} else if (next->type == list_start) {
 		runtime_get_next_token(rt);
