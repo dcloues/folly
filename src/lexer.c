@@ -193,10 +193,10 @@ token *get_token_numeric(FILE *fh, buffer *buf)
 {
 	read_matching(fh, buf, is_numeric);
 	int value = atoi(buf->data);
-	token *token = malloc(sizeof(token));
-	token->type = number;
-	token->value.number = value;
-	return token;
+	token *t = malloc(sizeof(token));
+	t->type = number;
+	t->value.number = value;
+	return t;
 }
 
 token *get_token_string(FILE *fh, buffer *buf)

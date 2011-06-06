@@ -35,6 +35,7 @@ static hval *eval_expr_invocation(runtime *, invocation *, hval *);
 static hval *get_prop_ref_site(runtime *, prop_ref *, hval *);
 
 static hval *native_print(hval *this, hval *args);
+static hval *native_add(hval *this, hval *args);
 #define runtime_current_token(rt) ((token *) rt->current->data)
 
 typedef struct {
@@ -100,6 +101,12 @@ static void register_top_level(runtime *r)
 	str = NULL;
 	hval_release(print);
 	print = NULL;
+
+	hstr *plus = hstr_create("+");
+	hval *add = hval_native_function_create(native_add);
+	hval_hash_put(r->top_level, plus, add);
+	hstr_release(plus);
+	hval_release(add);
 }
 
 hval *runtime_eval(runtime *runtime, char *file)
@@ -518,3 +525,14 @@ static hval *native_print(hval *this, hval *args)
 	return NULL;
 }
 
+static hval *native_add(hval *this, hval *args)
+{
+	int sum = 0;
+	ll_node *current = args->value.list->head;
+	while (current) {
+		sum += ((hval *) current->data)->value.number;
+		current = current->next;
+	}
+
+	return hval_number_create(sum);
+}
