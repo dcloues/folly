@@ -210,6 +210,49 @@ void hash_iterate(hash *h, key_value_callback callback, void *ctx)
 	}
 }
 
+hash_iterator *hash_iterator_create(hash *h)
+{
+	hash_iterator *it = malloc(sizeof(hash_iterator));
+	it->hash = h;
+	it->bucket = 0;
+	it->current_entry = NULL;
+	it->current_key = NULL;
+	it->current_value = NULL;
+	hash_iterator_next(it);
+}
+
+void hash_iterator_next(hash_iterator *iter)
+{
+	iter->current_value = NULL;
+	iter->current_key = NULL;
+	hash *h = iter->hash;
+	if (iter->current_entry)
+	{
+		iter->current_entry = iter->current_entry->next;
+		if (iter->current_entry == NULL)
+		{
+			iter->bucket++;
+		}
+	}
+
+	//for (int i = iter->bucket; i < h->buckets; i++) {
+	int *i = &iter->bucket;
+	for (int *i = &iter->bucket; *i < h->buckets; (*i)++) {
+		if (h->table[*i].key)
+		{
+			iter->current_entry = h->table + *i;
+			iter->current_key = iter->current_entry->key;
+			iter->current_value = iter->current_entry->value;
+			break;
+		}
+	}
+}
+
+void hash_iterator_destroy(hash_iterator *iter)
+{
+	free(iter);
+}
+
 void hash_dump(hash *hash, char *(*key_to_string)(void *), char *(*value_to_string)(void *))
 {
 	hlog("hash: size=%d with %d buckets\n", hash->size, hash->buckets);

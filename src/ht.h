@@ -21,6 +21,14 @@ typedef struct {
 	key_comparator key_comparator;
 } hash;
 
+typedef struct {
+	hash *hash;
+	int bucket;
+	hash_entry *current_entry;
+	void *current_key;
+	void *current_value;
+} hash_iterator;
+
 typedef void (*key_value_callback)(hash *, void *, void *, void *);
 
 /**
@@ -46,5 +54,8 @@ void hash_dump(hash *hash, char *(key_to_string)(void *), char *(*value_to_strin
 
 //void hash_iterate(hash *h, void (*callback)(hash *, void *, void *, void *), void *ctx);
 void hash_iterate(hash *h, key_value_callback callback, void *ctx);
+void hash_iterator_next(hash_iterator *);
+void hash_iterator_destroy(hash_iterator *);
+hash_iterator *hash_iterator_create(hash *);
 
 #endif

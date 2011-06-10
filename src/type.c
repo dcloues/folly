@@ -11,7 +11,6 @@
 
 static char *hval_hash_to_string(hash *h);
 static char *hval_list_to_string(linked_list *h);
-static int hash_hstr(hstr *);
 void print_hash_member(hash *h, hstr *key, hval *value, buffer *b);
 hval *hval_create(type);
 static void hval_destroy(hval *hv);
@@ -275,7 +274,7 @@ static void hval_destroy(hval *hv)
 	free(hv);
 }
 
-static int hash_hstr(hstr *hs)
+int hash_hstr(hstr *hs)
 {
 	return hash_string(hs->str);
 }

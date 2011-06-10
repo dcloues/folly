@@ -40,6 +40,7 @@ void hval_list_insert_head(hval *list, hval *val);
 void hval_list_insert_tail(hval *list, hval *val);
 char *hval_to_string(hval *);
 const char *hval_type_string(type t);
+int hash_hstr(hstr *);
 
 #endif
 

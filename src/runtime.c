@@ -24,10 +24,12 @@ static expression *read_identifier(runtime *);
 static expression *read_number(runtime *);
 static expression *read_string(runtime *);
 static expression *read_list(runtime *);
+static expression *read_hash(runtime *);
 
 static hval *runtime_evaluate_expression(runtime *, expression *, hval *);
 static hval *eval_prop_ref(runtime *, prop_ref *, hval *);
 static hval *eval_prop_set(runtime *, prop_set *, hval *);
+static hval *eval_expr_hash_literal(runtime *, hash *, hval *);
 static hval *eval_expr_list(runtime *, linked_list *, hval *);
 static hval *eval_expr_list_literal(runtime *, expression *, hval *);
 static hval *eval_expr_invocation(runtime *, invocation *, hval *);
@@ -47,7 +49,6 @@ static native_function_declaration top_levels[] = {
 	{"print", native_print},
 	{NULL, NULL}
 };
-	
 
 runtime *runtime_create()
 {
@@ -192,6 +193,9 @@ expression *read_complete_expression(runtime *rt)
 		case string:
 			expr = read_string(rt);
 			break;
+		case hash_start:
+			expr = read_hash(rt);
+			break;
 	}
 
 	return expr;
@@ -299,13 +303,16 @@ static void expr_destroy(expression *expr)
 		case expr_primitive_t:
 			hval_release(expr->operation.primitive);
 			break;
+		case expr_hash_literal_t:
+			hash_destroy(expr->operation.hash_literal, (destructor) hstr_release, (destructor) expr_destroy);
+			break;
 		case expr_invocation_t:
 			expr_destroy(expr->operation.invocation->list_args);
 			expr_destroy(expr->operation.invocation->function);
 			free(expr->operation.invocation);
 			break;
 		default:
-			hlog("ERROR: unexpected type passed to expr_destroy");
+			hlog("ERROR: unexpected type passed to expr_destroy\n");
 			break;
 	}
 
@@ -364,6 +371,29 @@ expression *read_list(runtime *rt)
 	return list;
 }
 
+static expression *read_hash(runtime *rt)
+{
+	expression *hash_lit = expr_create(expr_hash_literal_t);
+	hash_lit->operation.hash_literal = hash_create((hash_function) hash_hstr, (key_comparator) hstr_comparator);
+	// consume the hash_start
+	runtime_get_next_token(rt);
+	token *t = runtime_current_token(rt);
+	while (t != NULL && t->type != hash_end)
+	{
+		expect_token(t, identifier);
+		hstr *key = t->value.string;
+		hstr_retain(key);
+		t = runtime_get_next_token(rt);
+		expect_token(t, assignment);
+		runtime_get_next_token(rt);
+		expression *value = read_complete_expression(rt);
+		hash_put(hash_lit->operation.hash_literal, key, value);
+		t = runtime_get_next_token(rt);
+	}
+
+	return hash_lit;
+}
+
 static hval *runtime_evaluate_expression(runtime *rt, expression *expr, hval *context)
 {
 	switch (expr->type)
@@ -376,6 +406,8 @@ static hval *runtime_evaluate_expression(runtime *rt, expression *expr, hval *co
 			return eval_expr_list(rt, expr->operation.expr_list, context);
 		case expr_list_literal_t:
 			return eval_expr_list_literal(rt, expr, context);
+		case expr_hash_literal_t:
+			return eval_expr_hash_literal(rt, expr->operation.hash_literal, context);
 		case expr_primitive_t:
 			hval_retain(expr->operation.primitive);
 			return expr->operation.primitive;
@@ -427,6 +459,22 @@ static hval *eval_expr_list_literal(runtime *rt, expression *expr_list, hval *co
 	}
 
 	return list;
+}
+
+static hval *eval_expr_hash_literal(runtime *rt, hash *def, hval *context)
+{
+	hval *result = hval_hash_create();
+	hash_iterator *iter = hash_iterator_create(def);
+	while (iter->current_key != NULL)
+	{
+		hval *expr_value = runtime_evaluate_expression(rt, iter->current_value, context);
+		hval_hash_put(result, iter->current_key, expr_value);
+		hval_release(expr_value);
+		hash_iterator_next(iter);
+	}
+
+	hash_iterator_destroy(iter);
+	return result;
 }
 
 static hval *eval_prop_ref(runtime *rt, prop_ref *ref, hval *context)
