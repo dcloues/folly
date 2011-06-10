@@ -1,0 +1,4 @@
+h: { k1: "v1" k2: "v2" }
+h.k3: "v3"
+io.print(h.k3)
+io.print(h)

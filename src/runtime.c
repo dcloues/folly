@@ -245,6 +245,10 @@ expression *read_identifier(runtime *rt)
 		{
 			expr->operation.prop_ref->site = parent;
 		}
+		else if (expr->type == expr_prop_set_t)
+		{
+			expr->operation.prop_set->ref->site = parent;
+		}
 	} else if (next->type == list_start) {
 		runtime_get_next_token(rt);
 		expr = expr_create(expr_invocation_t);
@@ -506,6 +510,10 @@ static hval *eval_prop_set(runtime *rt, prop_set *set, hval *context)
 
 	hval *value = runtime_evaluate_expression(rt, set->value, context);
 	hval_hash_put(site, set->ref->name, value);
+	if (site != context)
+	{
+		hval_release(site);
+	}
 	return value;
 }
 
