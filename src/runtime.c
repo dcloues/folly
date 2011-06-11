@@ -277,7 +277,7 @@ expression *read_identifier(runtime *rt)
 		{
 			expr->operation.prop_set->ref->site = parent;
 		}
-	} else if (next->type == list_start) {
+	} else if (next->type == list_start || next->type == hash_start) {
 		runtime_get_next_token(rt);
 		expr = expr_create(expr_invocation_t);
 		invocation *inv = malloc(sizeof(invocation));
@@ -290,7 +290,16 @@ expression *read_identifier(runtime *rt)
 		expression *func = expr_create(expr_prop_ref_t);
 		func->operation.prop_ref = ref;
 		inv->function = func;
-		inv->list_args = read_list(rt);
+		if (next->type == list_start)
+		{
+			inv->list_args = read_list(rt);
+			inv->hash_args = NULL;
+		}
+		else
+		{
+			inv->list_args = NULL;
+			inv->hash_args = read_hash(rt);
+		}
 		expr->operation.invocation = inv;
 	} else {
 		expr = expr_create(expr_prop_ref_t);
@@ -452,6 +461,13 @@ static hval *eval_prop_ref(runtime *rt, prop_ref *ref, hval *context)
 	}
 
 	hval *val = hval_hash_get(site, ref->name);
+	if (val == NULL)
+	{
+		char *str = hstr_to_str(ref->name);
+		hlog("warning: attempted to access undefined property %s\n", str);
+		free(str);
+		exit(1);
+	}
 	hval_retain(val);
 	if (site != context)
 	{
@@ -498,8 +514,21 @@ static hval *eval_expr_invocation(runtime *rt, invocation *inv, hval *context)
 	{
 		return NULL;
 	}
-	hval *args = eval_expr_list_literal(rt, inv->list_args, context);
-	hval *result = fn->value.native_fn(NULL, args);
+	hval *args = (inv->list_args != NULL)
+			? eval_expr_list_literal(rt, inv->list_args, context)
+			: eval_expr_hash_literal(rt, inv->hash_args->operation.hash_literal, context);
+	/*hval *args = eval_expr_list_literal(rt, inv->list_args, context);*/
+	hval *result = NULL;
+	if (fn->type == native_function_t)
+	{
+		result = fn->value.native_fn(NULL, args);
+	}
+	else
+	{
+		hval *expr = hval_hash_get(fn, FN_EXPR);
+		hval *args = hval_hash_get(fn, FN_ARGS);
+		result = runtime_evaluate_expression(rt, expr->value.deferred_expression.expr, args);
+	}
 	hval_release(args);
 	hval_release(fn);
 	hlog("eval_expr_invocation got result: %p\n", result);

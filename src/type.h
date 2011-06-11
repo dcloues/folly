@@ -24,7 +24,7 @@ typedef struct prop_set {
 typedef struct invocation {
 	expression *function;
 	expression *list_args;
-	hash *hash_args;
+	expression *hash_args;
 } invocation;
 
 struct expression {
