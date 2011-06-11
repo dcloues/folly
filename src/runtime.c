@@ -16,9 +16,6 @@ token *runtime_get_next_token(runtime *runtime);
 static void *expect_token(token *t, type token_type);
 static void register_top_level(runtime *);
 
-static expression *expr_create(expression_type);
-static void expr_destroy(expression *expr);
-static void prop_ref_destroy(prop_ref *ref);
 static expression *read_complete_expression(runtime *);
 static expression *read_identifier(runtime *);
 static expression *read_number(runtime *);
@@ -177,14 +174,7 @@ void runtime_parse(runtime *runtime, char *file)
 expression *runtime_analyze(runtime *rt)
 {
 	token *t = NULL;
-	expression *expr_list = malloc(sizeof(expression));
-	if (expr_list == NULL)
-	{
-		perror("Unable to allocate memory for expr_list");
-		exit(1);
-	}
-
-	expr_list->type = expr_list_t;
+	expression *expr_list = expr_create(expr_list_t);
 	expr_list->operation.expr_list = ll_create();
 
 	expression *expr = NULL;
@@ -310,69 +300,6 @@ expression *read_identifier(runtime *rt)
 	return expr;
 }
 
-expression *expr_create(expression_type type)
-{
-	expression *expr = malloc(sizeof(expression));
-	if (expr == NULL)
-	{
-		perror("Unable to allocate memory for expression");
-		exit(1);
-	}
-	expr->type = type;
-
-	return expr;
-}
-
-static void expr_destroy(expression *expr)
-{
-	hlog("expr_destroy %p %d\n", expr, expr->type);
-	switch (expr->type)
-	{
-		case expr_prop_ref_t:
-			prop_ref_destroy(expr->operation.prop_ref);
-			break;
-		case expr_prop_set_t:
-			prop_ref_destroy(expr->operation.prop_set->ref);
-			expr_destroy(expr->operation.prop_set->value);
-			free(expr->operation.prop_set);
-			break;
-		case expr_list_literal_t:
-			ll_destroy(expr->operation.list_literal, (destructor) expr_destroy);
-			break;
-		case expr_list_t:
-			ll_destroy(expr->operation.expr_list, (destructor) expr_destroy);
-			break;
-		case expr_primitive_t:
-			hval_release(expr->operation.primitive);
-			break;
-		case expr_hash_literal_t:
-			hash_destroy(expr->operation.hash_literal, (destructor) hstr_release, (destructor) expr_destroy);
-			break;
-		case expr_invocation_t:
-			expr_destroy(expr->operation.invocation->list_args);
-			expr_destroy(expr->operation.invocation->function);
-			free(expr->operation.invocation);
-			break;
-		default:
-			hlog("ERROR: unexpected type passed to expr_destroy\n");
-			break;
-	}
-
-	free(expr);
-}
-
-static void prop_ref_destroy(prop_ref *ref)
-{
-	if (ref->site)
-	{
-		expr_destroy(ref->site);
-	}
-
-	hstr_release(ref->name);
-	free(ref);
-}
-
-
 expression *read_string(runtime *rt)
 {
 	token *t = runtime_current_token(rt);
@@ -391,13 +318,7 @@ expression *read_number(runtime *rt)
 
 expression *read_list(runtime *rt)
 {
-	expression *list = malloc(sizeof(expression));
-	list->type = expr_list_literal_t;
-	if (list == NULL)
-	{
-		perror("Unable to allocate memory in read_list\n");
-		exit(1);
-	}
+	expression *list = expr_create(expr_list_literal_t);
 	list->operation.list_literal = ll_create();
 
 	runtime_get_next_token(rt);
@@ -590,6 +511,7 @@ static hval *eval_expr_deferred(runtime *rt, expression *deferred, hval *context
 {
 	hval *val = hval_create(deferred_expression_t);
 	val->value.deferred_expression.expr = deferred;
+	expr_retain(deferred);
 	val->value.deferred_expression.ctx = context;
 	return val;
 }

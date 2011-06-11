@@ -13,6 +13,7 @@ static char *hval_hash_to_string(hash *h);
 static char *hval_list_to_string(linked_list *h);
 void print_hash_member(hash *h, hstr *key, hval *value, buffer *b);
 static void hval_destroy(hval *hv);
+static void prop_ref_destroy(prop_ref *ref);
 
 const char *hval_type_string(type t)
 {
@@ -270,6 +271,10 @@ static void hval_destroy(hval *hv)
 			hash_destroy(hv->value.hash.members, (destructor) hstr_release, (destructor)hval_release);
 			hv->value.hash.members = NULL;
 			break;
+		case deferred_expression_t:
+			hval_release(hv->value.deferred_expression.ctx);
+			expr_destroy(hv->value.deferred_expression.expr);
+			break;
 	}
 
 	free(hv);
@@ -279,3 +284,84 @@ int hash_hstr(hstr *hs)
 {
 	return hash_string(hs->str);
 }
+
+expression *expr_create(expression_type type)
+{
+	expression *expr = malloc(sizeof(expression));
+	if (expr == NULL)
+	{
+		perror("Unable to allocate memory for expression");
+		exit(1);
+	}
+	expr->refs = 1;
+	expr->type = type;
+
+	return expr;
+}
+
+void expr_retain(expression *expr)
+{
+	expr->refs++;
+}
+
+void expr_destroy(expression *expr)
+{
+	expr->refs--;
+	if (expr->refs > 0)
+	{
+		return;
+	}
+
+	hlog("expr_destroy %p %d\n", expr, expr->type);
+	switch (expr->type)
+	{
+		case expr_prop_ref_t:
+			prop_ref_destroy(expr->operation.prop_ref);
+			break;
+		case expr_prop_set_t:
+			prop_ref_destroy(expr->operation.prop_set->ref);
+			expr_destroy(expr->operation.prop_set->value);
+			free(expr->operation.prop_set);
+			break;
+		case expr_list_literal_t:
+			ll_destroy(expr->operation.list_literal, (destructor) expr_destroy);
+			break;
+		case expr_list_t:
+			ll_destroy(expr->operation.expr_list, (destructor) expr_destroy);
+			break;
+		case expr_primitive_t:
+			hval_release(expr->operation.primitive);
+			break;
+		case expr_hash_literal_t:
+			hash_destroy(expr->operation.hash_literal, (destructor) hstr_release, (destructor) expr_destroy);
+			break;
+		case expr_invocation_t:
+			expr_destroy(expr->operation.invocation->list_args);
+			expr_destroy(expr->operation.invocation->function);
+			free(expr->operation.invocation);
+			break;
+		case expr_deferred_t:
+			expr_destroy(expr->operation.deferred_expression);
+			break;
+		default:
+			hlog("ERROR: unexpected type passed to expr_destroy\n");
+			break;
+	}
+
+	free(expr);
+}
+
+/*expression *expr_create(expression_type);*/
+/*void expr_destroy(expression *expr);*/
+
+static void prop_ref_destroy(prop_ref *ref)
+{
+	if (ref->site)
+	{
+		expr_destroy(ref->site);
+	}
+
+	hstr_release(ref->name);
+	free(ref);
+}
+

@@ -29,6 +29,7 @@ typedef struct invocation {
 
 struct expression {
 	expression_type type;
+	int refs;
 	union {
 		prop_ref *prop_ref;
 		prop_set *prop_set;
@@ -78,6 +79,9 @@ void hval_list_insert_tail(hval *list, hval *val);
 char *hval_to_string(hval *);
 const char *hval_type_string(type t);
 int hash_hstr(hstr *);
+expression *expr_create(expression_type);
+void expr_retain(expression *);
+void expr_destroy(expression *);
 
 #endif
 
