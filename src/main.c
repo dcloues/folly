@@ -16,6 +16,7 @@ int main(int argc, char **argv)
 
 	hlog_init("parsify.log");
 
+	runtime_init_globals();
 	runtime *r = runtime_create();
 	hval *ctx = runtime_eval(r, argv[1]);
 	hlog("calling runtime_destroy\n");
@@ -24,6 +25,8 @@ int main(int argc, char **argv)
 
 	hlog("releasing context\n");
 	hval_release(ctx);
+
+	runtime_destroy_globals();
 
 	hlog_shutdown();
 

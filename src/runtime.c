@@ -25,6 +25,7 @@ static expression *read_number(runtime *);
 static expression *read_string(runtime *);
 static expression *read_list(runtime *);
 static expression *read_hash(runtime *);
+static expression *read_quoted(runtime *);
 
 static hval *runtime_evaluate_expression(runtime *, expression *, hval *);
 static hval *eval_prop_ref(runtime *, prop_ref *, hval *);
@@ -33,11 +34,13 @@ static hval *eval_expr_hash_literal(runtime *, hash *, hval *);
 static hval *eval_expr_list(runtime *, linked_list *, hval *);
 static hval *eval_expr_list_literal(runtime *, expression *, hval *);
 static hval *eval_expr_invocation(runtime *, invocation *, hval *);
+static hval *eval_expr_deferred(runtime *, expression *, hval *);
 
 static hval *get_prop_ref_site(runtime *, prop_ref *, hval *);
 
 static hval *native_print(hval *this, hval *args);
 static hval *native_add(hval *this, hval *args);
+static hval *native_fn(hval *this, hval *args);
 #define runtime_current_token(rt) ((token *) rt->current->data)
 
 typedef struct {
@@ -49,6 +52,22 @@ static native_function_declaration top_levels[] = {
 	{"print", native_print},
 	{NULL, NULL}
 };
+
+static hstr *FN_ARGS;
+static hstr *FN_EXPR;
+
+void runtime_init_globals()
+{
+
+	FN_ARGS = hstr_create("__arguments__");
+	FN_EXPR = hstr_create("__expr__");
+}
+
+void runtime_destroy_globals()
+{
+	hstr_release(FN_ARGS);
+	hstr_release(FN_EXPR);
+}
 
 runtime *runtime_create()
 {
@@ -108,6 +127,12 @@ static void register_top_level(runtime *r)
 	hval_hash_put(r->top_level, plus, add);
 	hstr_release(plus);
 	hval_release(add);
+
+	hval *fn = hval_native_function_create(native_fn);
+	str = hstr_create("fn");
+	hval_hash_put(r->top_level, str, fn);
+	hstr_release(str);
+	hval_release(fn);
 }
 
 hval *runtime_eval(runtime *runtime, char *file)
@@ -196,8 +221,21 @@ expression *read_complete_expression(runtime *rt)
 		case hash_start:
 			expr = read_hash(rt);
 			break;
+		case quote:
+			expr = read_quoted(rt);
+			break;
 	}
 
+	return expr;
+}
+
+expression *read_quoted(runtime *rt)
+{
+	
+	expression *expr = expr_create(expr_deferred_t);
+	runtime_get_next_token(rt);
+	expression *deferred = read_complete_expression(rt);
+	expr->operation.deferred_expression = deferred;
 	return expr;
 }
 
@@ -417,6 +455,8 @@ static hval *runtime_evaluate_expression(runtime *rt, expression *expr, hval *co
 			return expr->operation.primitive;
 		case expr_invocation_t:
 			return eval_expr_invocation(rt, expr->operation.invocation, context);
+		case expr_deferred_t:
+			return eval_expr_deferred(rt, expr->operation.deferred_expression, context);
 		default:
 			hlog("Error: unknown expression type");
 			exit(1);
@@ -546,6 +586,14 @@ static hval *eval_expr_invocation(runtime *rt, invocation *inv, hval *context)
 	return result;
 }
 
+static hval *eval_expr_deferred(runtime *rt, expression *deferred, hval *context)
+{
+	hval *val = hval_create(deferred_expression_t);
+	val->value.deferred_expression.expr = deferred;
+	val->value.deferred_expression.ctx = context;
+	return val;
+}
+
 token *runtime_peek_token(runtime *runtime)
 {
 	return runtime->current && runtime->current->next
@@ -599,3 +647,13 @@ static hval *native_add(hval *this, hval *args)
 
 	return hval_number_create(sum);
 }
+
+static hval *native_fn(hval *this, hval *args)
+{
+	hval *fn = hval_hash_create();
+
+	hval_hash_put(fn, FN_ARGS, (hval *) args->value.list->head->data);
+	hval_hash_put(fn, FN_EXPR, (hval *) args->value.list->tail->data);
+	return fn;
+}
+

@@ -12,20 +12,19 @@
 static char *hval_hash_to_string(hash *h);
 static char *hval_list_to_string(linked_list *h);
 void print_hash_member(hash *h, hstr *key, hval *value, buffer *b);
-hval *hval_create(type);
 static void hval_destroy(hval *hv);
 
 const char *hval_type_string(type t)
 {
 	switch (t)
 	{
-		case string_t:	       	return "string";
-		case number_t:	       	return "number";
-		case list_t:	       	return "list";
-		case hash_t:	       	return "hash";
-		case native_function_t: return "native function";
-		case quoted_list_t:	return "quoted list";
-		default:		return "unknown";
+		case string_t:			return "string";
+		case number_t:			return "number";
+		case list_t:			return "list";
+		case hash_t:			return "hash";
+		case native_function_t:		return "native function";
+		case deferred_expression_t:	return "deferred expression";
+		default:			return "unknown";
 	}
 }
 
@@ -167,6 +166,8 @@ char *hval_to_string(hval *hval)
 			return str;
 		case native_function_t:
 			return fmt("native function");
+		case deferred_expression_t:
+			return fmt("deferred expression");
 
 	}
 
