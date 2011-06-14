@@ -212,6 +212,9 @@ expression *read_complete_expression(runtime *rt)
 		case hash_start:
 			expr = read_hash(rt);
 			break;
+		case list_start:
+			expr = read_list(rt);
+			break;
 		case quote:
 			expr = read_quoted(rt);
 			break;
@@ -558,8 +561,9 @@ static hval *eval_expr_folly_invocation(runtime *rt, hval *fn, hval *args, hval 
 		hlog("done evaluating arguments\n");
 	}
 
-	/*hval *fn_context = hval_hash_create_child(expr->value.deferred_expression.ctx);*/
-	hval *result = runtime_evaluate_expression(rt, expr->value.deferred_expression.expr, fn_context);
+	/*hval *result = runtime_evaluate_expression(rt, expr->value.deferred_expression.expr, fn_context);*/
+	/*hval *result = eval_expr_list_literal(rt, expr->value.deferred_expression.expr, fn_context);*/
+	hval *result = eval_expr_list(rt, expr->value.deferred_expression.expr->operation.list_literal, fn_context);
 	hval_release(fn_context);
 
 	return result;

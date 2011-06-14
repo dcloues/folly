@@ -1,0 +1,5 @@
+other_plus: fn({a: 5 b: 6} `(
+    foo: +(a b)
+    +(5 foo)
+))
+io.print(other_plus{a: 1 b: 2})

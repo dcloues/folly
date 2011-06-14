@@ -1,2 +1,2 @@
-other_plus: fn({a: 5 b: 6} `+(a b))
+other_plus: fn({a: 5 b: 6} `(+(a b)))
 io.print(other_plus{a: 1 b: 2})
