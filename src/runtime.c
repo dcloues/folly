@@ -31,6 +31,7 @@ static hval *eval_expr_hash_literal(runtime *, hash *, hval *);
 static hval *eval_expr_list(runtime *, linked_list *, hval *);
 static hval *eval_expr_list_literal(runtime *, expression *, hval *);
 static hval *eval_expr_invocation(runtime *, invocation *, hval *);
+static hval *eval_expr_folly_invocation(runtime *rt, hval *fn, hval *args, hval *context);
 static hval *eval_expr_deferred(runtime *, expression *, hval *);
 
 static hval *get_prop_ref_site(runtime *, prop_ref *, hval *);
@@ -517,6 +518,12 @@ static hval *eval_expr_invocation(runtime *rt, invocation *inv, hval *context)
 	hval *args = (inv->list_args != NULL)
 			? eval_expr_list_literal(rt, inv->list_args, context)
 			: eval_expr_hash_literal(rt, inv->hash_args->operation.hash_literal, context);
+	if (args == NULL)
+	{
+		printf("null args!\n");
+		exit(1);
+	}
+
 	/*hval *args = eval_expr_list_literal(rt, inv->list_args, context);*/
 	hval *result = NULL;
 	if (fn->type == native_function_t)
@@ -525,13 +532,32 @@ static hval *eval_expr_invocation(runtime *rt, invocation *inv, hval *context)
 	}
 	else
 	{
-		hval *expr = hval_hash_get(fn, FN_EXPR);
-		hval *args = hval_hash_get(fn, FN_ARGS);
-		result = runtime_evaluate_expression(rt, expr->value.deferred_expression.expr, args);
+		result = eval_expr_folly_invocation(rt, fn, args, context);
 	}
 	hval_release(args);
 	hval_release(fn);
 	hlog("eval_expr_invocation got result: %p\n", result);
+
+	return result;
+}
+	
+static hval *eval_expr_folly_invocation(runtime *rt, hval *fn, hval *args, hval *context)
+{
+	hval *expr = hval_hash_get(fn, FN_EXPR);
+	hval *default_args = hval_hash_get(fn, FN_ARGS);
+	if (default_args->type != args->type) {
+		hlog("Error: argument type mismatch\n");
+	}
+
+	hval *fn_context = hval_hash_create_child(expr->value.deferred_expression.ctx);
+	if (args->type == hash_t) {
+		hval_hash_put_all(fn_context, default_args);
+		hval_hash_put_all(fn_context, args);
+	}
+
+	/*hval *fn_context = hval_hash_create_child(expr->value.deferred_expression.ctx);*/
+	hval *result = runtime_evaluate_expression(rt, expr->value.deferred_expression.expr, fn_context);
+	hval_release(fn_context);
 
 	return result;
 }

@@ -43,6 +43,12 @@ void hash_destroy(hash *h, destructor key_dtor, destructor value_dtor);
  */
 void *hash_put(hash *hash, void *key, void *value);
 
+/**
+ * Adds all values from src to dest, invoking overwrite_dtor
+ * to clean up any values that are overwritten.
+ */
+void hash_put_all(hash *dest, hash *src, destructor overwrite_dtor);
+
 /* Removes a key from the hash and returns the value that was
  * associated with it, if any.
  */

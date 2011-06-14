@@ -73,6 +73,7 @@ hval *hval_hash_create(void);
 hval *hval_hash_create_child(hval *parent);
 hval *hval_hash_get(hval *hv, hstr *str);
 hval *hval_hash_put(hval *hv, hstr *str, hval *value);
+hval *hval_hash_put_all(hval *dest, hval *src);
 hval *hval_native_function_create(native_function fn);
 void hval_list_insert_head(hval *list, hval *val);
 void hval_list_insert_tail(hval *list, hval *val);

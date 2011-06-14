@@ -81,6 +81,10 @@ void hash_entry_destroy(hash_entry *entry, destructor key_dtor, destructor value
 
 void *hash_put(hash *hash, void *key, void *value)
 {
+	if (hash == NULL) {
+		printf("hash_put into null hash\n");
+		exit(1);
+	}
 	unsigned int i = hash_index_of(hash, key);
 	hash_entry *candidate = hash->table + i;
 
@@ -120,6 +124,18 @@ void *hash_put(hash *hash, void *key, void *value)
 		candidate->value = value;
 		return NULL;
 	}
+}
+
+void hash_put_all(hash *dest, hash *src, destructor overwrite_dtor)
+{
+	hash_iterator *iter = hash_iterator_create(src);
+	while (iter->current_key != NULL)
+	{
+		hash_put(dest, iter->current_key, iter->current_value);
+		hash_iterator_next(iter);
+	}
+
+	hash_iterator_destroy(iter);
 }
 
 unsigned int hash_index_of(hash *hash, void *key)

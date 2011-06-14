@@ -15,6 +15,7 @@ void print_hash_member(hash *h, hstr *key, hval *value, buffer *b);
 static void hval_destroy(hval *hv);
 static void prop_ref_destroy(prop_ref *ref);
 
+
 const char *hval_type_string(type t)
 {
 	switch (t)
@@ -99,6 +100,7 @@ hval *hval_hash_put(hval *hv, hstr *key, hval *value)
 	if (previous != NULL)
 	{
 		hval_release(previous);
+		hstr_release(key);
 	}
 
 	return value;
@@ -336,7 +338,11 @@ void expr_destroy(expression *expr)
 			hash_destroy(expr->operation.hash_literal, (destructor) hstr_release, (destructor) expr_destroy);
 			break;
 		case expr_invocation_t:
-			expr_destroy(expr->operation.invocation->list_args);
+			if (expr->operation.invocation->list_args != NULL) {
+				expr_destroy(expr->operation.invocation->list_args);
+			} else if (expr->operation.invocation->hash_args != NULL) {
+				expr_destroy(expr->operation.invocation->hash_args);
+			}
 			expr_destroy(expr->operation.invocation->function);
 			free(expr->operation.invocation);
 			break;
@@ -351,9 +357,6 @@ void expr_destroy(expression *expr)
 	free(expr);
 }
 
-/*expression *expr_create(expression_type);*/
-/*void expr_destroy(expression *expr);*/
-
 static void prop_ref_destroy(prop_ref *ref)
 {
 	if (ref->site)
@@ -363,5 +366,16 @@ static void prop_ref_destroy(prop_ref *ref)
 
 	hstr_release(ref->name);
 	free(ref);
+}
+
+hval *hval_hash_put_all(hval *dest, hval *src)
+{
+	hash_iterator *iter = hash_iterator_create(src->value.hash.members);
+	while (iter->current_key != NULL) {
+		hval_hash_put(dest, iter->current_key, iter->current_value);
+		hash_iterator_next(iter);
+	}
+
+	hash_iterator_destroy(iter);
 }
 
