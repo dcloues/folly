@@ -551,8 +551,11 @@ static hval *eval_expr_folly_invocation(runtime *rt, hval *fn, hval *args, hval 
 
 	hval *fn_context = hval_hash_create_child(expr->value.deferred_expression.ctx);
 	if (args->type == hash_t) {
+		hlog("evaluating default arguments\n");
 		hval_hash_put_all(fn_context, default_args);
+		hlog("evaluating provided arguments\n");
 		hval_hash_put_all(fn_context, args);
+		hlog("done evaluating arguments\n");
 	}
 
 	/*hval *fn_context = hval_hash_create_child(expr->value.deferred_expression.ctx);*/

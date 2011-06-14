@@ -92,20 +92,26 @@ void *hash_put(hash *hash, void *key, void *value)
 	// we need different logic to chain.
 	if (candidate->key)
 	{
-		while (candidate->next)
+		//while (candidate->next)
+		while (true)
 		{
 			if (hash->key_comparator(candidate->key, key))
 			{
 				if (candidate->value == value)
 				{
+					hlog("overwriting with same value\n");
 					return NULL;
 				}
 				else
 				{
+					hlog("overwriting with new value\n");
 					void *old_value = candidate->value;
 					candidate->value = value;
 					return old_value;
 				}
+			}
+			if (candidate->next == NULL) {
+				break;
 			}
 			candidate = candidate->next;
 		}

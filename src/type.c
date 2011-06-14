@@ -89,7 +89,9 @@ hval *hval_hash_get(hval *hv, hstr *key)
 hval *hval_hash_put(hval *hv, hstr *key, hval *value)
 {
 	// TODO Handle overwrite/cleanup
-	hlog("hval_hash_put: %s %p -> %p\n", key->str, key, value);
+	char *str = hval_to_string(value);
+	hlog("hval_hash_put: %s %p -> %p %s\n", key->str, key, value, str);
+	free(str);
 	hstr_retain(key);
 	if (value != NULL)
 	{
@@ -99,6 +101,9 @@ hval *hval_hash_put(hval *hv, hstr *key, hval *value)
 	hval *previous = hash_put(hv->value.hash.members, key, value);
 	if (previous != NULL)
 	{
+		str = hval_to_string(previous);
+		hlog("previous value: %p %s\n", previous, str);
+		free(str);
 		hval_release(previous);
 		hstr_release(key);
 	}
