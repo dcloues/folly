@@ -49,7 +49,7 @@ void buffer_ensure_capacity(buffer *buffer, int new_capacity)
 {
 	if (new_capacity + 1 > buffer->capacity) {
 		char *resized = realloc(buffer->data, buffer->capacity * 2);
-		hlog("buffer_ensure_capacity: %p -> %p\n", buffer->data, resized);
+		/*hlog("buffer_ensure_capacity: %p -> %p\n", buffer->data, resized);*/
 		if (resized)
 		{
 			buffer->data = resized;

@@ -1,0 +1,9 @@
+outer: 4
+scope_test: fn({amount: 0} `(
+    +(amount outer)
+))
+
+io.print(scope_test{amount: 1})
+outer: 6
+io.print(scope_test{amount: 1})
+

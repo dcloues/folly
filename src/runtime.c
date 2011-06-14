@@ -57,7 +57,7 @@ static hstr *FN_EXPR;
 void runtime_init_globals()
 {
 
-	FN_ARGS = hstr_create("__arguments__");
+	FN_ARGS = hstr_create("__args__");
 	FN_EXPR = hstr_create("__expr__");
 }
 
@@ -554,11 +554,8 @@ static hval *eval_expr_folly_invocation(runtime *rt, hval *fn, hval *args, hval 
 
 	hval *fn_context = hval_hash_create_child(expr->value.deferred_expression.ctx);
 	if (args->type == hash_t) {
-		hlog("evaluating default arguments\n");
 		hval_hash_put_all(fn_context, default_args);
-		hlog("evaluating provided arguments\n");
 		hval_hash_put_all(fn_context, args);
-		hlog("done evaluating arguments\n");
 	}
 
 	/*hval *result = runtime_evaluate_expression(rt, expr->value.deferred_expression.expr, fn_context);*/
