@@ -12,6 +12,11 @@ typedef struct {
 	hval *last_result;
 } runtime;
 
+typedef struct _native_function_spec {
+	char *path;
+	native_function function;
+} native_function_spec;
+
 runtime *runtime_create();
 void runtime_destroy();
 hval *runtime_eval(runtime *runtime, char *file);

@@ -2,6 +2,7 @@
 #include <string.h>
 #include <stdio.h>
 #include "runtime.h"
+#include <stdarg.h>
 #include "lexer.h"
 #include "linked_list.h"
 #include "log.h"
@@ -15,6 +16,8 @@ token *runtime_peek_token(runtime *runtime);
 token *runtime_get_next_token(runtime *runtime);
 static void *expect_token(token *t, type token_type);
 static void register_top_level(runtime *);
+static void register_builtin(hval *, char *, hval *, bool);
+static void register_builtin_r(hval *, char *, hval *);
 
 static expression *read_complete_expression(runtime *);
 static expression *read_identifier(runtime *);
@@ -41,14 +44,11 @@ static hval *native_add(hval *this, hval *args);
 static hval *native_fn(hval *this, hval *args);
 #define runtime_current_token(rt) ((token *) rt->current->data)
 
-typedef struct {
-	char *name;
-	native_function fn;
-} native_function_declaration;
-
-static native_function_declaration top_levels[] = {
-	{"print", native_print},
-	{NULL, NULL}
+static native_function_spec native_functions[] = {
+	{ "io.print", native_print },
+	{ "+", native_add },
+	{ "fn", native_fn },
+	{ NULL, NULL }
 };
 
 static hstr *FN_ARGS;
@@ -103,34 +103,61 @@ static void register_top_level(runtime *r)
 {
 	hlog("Registering top levels\n");
 	int i = 0;
-	
-	hval *io = hval_hash_create();
-	hstr *io_str = hstr_create("io");
-	hval_hash_put(r->top_level, io_str, io);
-	hval_release(io);
-	hstr_release(io_str);
-	io_str = NULL;
+	for (; i < sizeof(native_functions); i++) {
+		if (native_functions[i].path == NULL) {
+			break;
+		}
+		hlog("registering: %s\n", native_functions[i].path);
+		register_builtin_r(r->top_level,
+			native_functions[i].path,
+			hval_native_function_create(native_functions[i].function));
+	}
+}
 
-	hval *print = hval_native_function_create(native_print);
-	hstr *str = hstr_create("print");
-	hval_hash_put(io, str, print);
+static void register_builtin_r(hval *site, char *name, hval *value)
+{
+	register_builtin(site, name, value, true);
+}
 
+static void register_builtin(hval *site, char *name, hval *value, bool release_value)
+{
+	int start = 0;
+	int i = 0;
+	hstr *str = NULL;
+	hval *new_site = NULL;
+
+	// for symmetry with the hval_release() below
+	// we create missing values and need to release them,
+	// so it's easier to retain the site we received
+	// so we can release unconditionally
+	hval_retain(site);
+	while (true)
+	{
+		if (name[i] == '.') {
+			str = hstr_create_len(name + start, i - start);
+			new_site = hval_hash_get(site, str);
+			if (new_site == NULL) {
+				new_site = hval_hash_create();
+				hval_hash_put(site, str, new_site);
+			}
+			hval_release(site);
+			site = new_site;
+			hstr_release(str);
+			start = i + 1;
+		} else if (name[i] == '\0') {
+			str = hstr_create_len(name + start, i - start);
+			break;
+		}
+
+		++i;
+	}
+
+	hval_hash_put(site, str, value);
 	hstr_release(str);
-	str = NULL;
-	hval_release(print);
-	print = NULL;
-
-	hstr *plus = hstr_create("+");
-	hval *add = hval_native_function_create(native_add);
-	hval_hash_put(r->top_level, plus, add);
-	hstr_release(plus);
-	hval_release(add);
-
-	hval *fn = hval_native_function_create(native_fn);
-	str = hstr_create("fn");
-	hval_hash_put(r->top_level, str, fn);
-	hstr_release(str);
-	hval_release(fn);
+	if (release_value) {
+		hval_release(value);
+	}
+	hval_release(site);
 }
 
 hval *runtime_eval(runtime *runtime, char *file)

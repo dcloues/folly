@@ -90,7 +90,7 @@ hval *hval_hash_put(hval *hv, hstr *key, hval *value)
 {
 	// TODO Handle overwrite/cleanup
 	char *str = hval_to_string(value);
-	hlog("hval_hash_put: %s %p -> %p %s\n", key->str, key, value, str);
+	hlog("hval_hash_put: %p %s %p -> %p %s\n", hv, key->str, key, value, str);
 	free(str);
 	hstr_retain(key);
 	if (value != NULL)

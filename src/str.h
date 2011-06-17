@@ -1,6 +1,7 @@
 #ifndef STR_H
 #define STR_H
 #include <stdbool.h>
+#include <stdlib.h>
 
 typedef struct {
 	char *str;
@@ -8,7 +9,8 @@ typedef struct {
 } hstr;
 
 hstr *hstr_create(char *);
-void hstr_init(hstr *, char *);
+hstr *hstr_create_len(char *, size_t);
+void hstr_init(hstr *, char *, size_t);
 void hstr_retain(hstr *);
 void hstr_release(hstr *);
 char *hstr_to_str(hstr *);
