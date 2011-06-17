@@ -585,8 +585,6 @@ static hval *eval_expr_folly_invocation(runtime *rt, hval *fn, hval *args, hval 
 		hval_hash_put_all(fn_context, args);
 	}
 
-	/*hval *result = runtime_evaluate_expression(rt, expr->value.deferred_expression.expr, fn_context);*/
-	/*hval *result = eval_expr_list_literal(rt, expr->value.deferred_expression.expr, fn_context);*/
 	hval *result = eval_expr_list(rt, expr->value.deferred_expression.expr->operation.list_literal, fn_context);
 	hval_release(fn_context);
 
