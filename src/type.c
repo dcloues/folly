@@ -15,6 +15,17 @@ void print_hash_member(hash *h, hstr *key, hval *value, buffer *b);
 static void hval_destroy(hval *hv);
 static void prop_ref_destroy(prop_ref *ref);
 
+static hstr *FN_SELF;
+
+void type_init_globals()
+{
+	FN_SELF = hstr_create("self");
+}
+
+void type_destroy_globals()
+{
+	hstr_release(FN_SELF);
+}
 
 const char *hval_type_string(type t)
 {
@@ -47,9 +58,7 @@ hval *hval_number_create(int number)
 
 hval *hval_hash_create(void)
 {
-	hval *hv = hval_create(hash_t);
-	hv->value.hash.members = hash_create((hash_function) hash_hstr, (key_comparator) hstr_comparator);
-	return hv;
+	return hval_create(hash_t);
 }
 
 hval *hval_hash_create_child(hval *parent)
@@ -71,7 +80,7 @@ hval *hval_hash_get(hval *hv, hstr *key)
 		return NULL;
 	}
 
-	hash *h = hv->value.hash.members;
+	hash *h = hv->members;
 	hval *val = hash_get(h, key);
 	if (val == NULL)
 	{
@@ -98,7 +107,7 @@ hval *hval_hash_put(hval *hv, hstr *key, hval *value)
 		hval_retain(value);
 	}
 
-	hval *previous = hash_put(hv->value.hash.members, key, value);
+	hval *previous = hash_put(hv->members, key, value);
 	if (previous != NULL)
 	{
 		str = hval_to_string(previous);
@@ -145,6 +154,17 @@ hval *hval_native_function_create(native_function fn)
 	return hv;
 }
 
+hval *hval_bind_function(hval *function, hval *site)
+{
+	hval_hash_put(function, FN_SELF, site);
+	return function;
+}
+
+hval *hval_get_self(hval *function)
+{
+	return hval_hash_get(function, FN_SELF);
+}
+
 char *hval_to_string(hval *hval)
 {
 	if (hval == NULL)
@@ -163,7 +183,7 @@ char *hval_to_string(hval *hval)
 		case number_t:
 			return fmt("%s@%p: %d", type_str, hval, hval->value.number);
 		case hash_t:
-			contents = hval_hash_to_string(hval->value.hash.members);
+			contents = hval_hash_to_string(hval->members);
 			str = fmt("%s@%p: %s", type_str, hval, contents);
 			free(contents);
 			return str;
@@ -240,6 +260,7 @@ void print_hash_member(hash *h, hstr *key, hval *value, buffer *b)
 hval *hval_create(type hval_type)
 {
 	hval *hv = malloc(sizeof(hval));
+	hv->members = hash_create((hash_function) hash_hstr, (key_comparator) hstr_comparator);
 	hv->type = hval_type;
 	hv->refs = 1;
 	hlog("hval_create: %p: %s\n", hv, hval_type_string(hval_type));
@@ -275,14 +296,14 @@ static void hval_destroy(hval *hv)
 			ll_destroy(hv->value.list, (destructor) hval_release);
 			break;
 		case hash_t:
-			hash_destroy(hv->value.hash.members, (destructor) hstr_release, (destructor)hval_release);
-			hv->value.hash.members = NULL;
 			break;
 		case deferred_expression_t:
 			hval_release(hv->value.deferred_expression.ctx);
 			expr_destroy(hv->value.deferred_expression.expr);
 			break;
 	}
+	hash_destroy(hv->members, (destructor) hstr_release, (destructor)hval_release);
+	hv->members = NULL;
 
 	free(hv);
 }
@@ -375,7 +396,7 @@ static void prop_ref_destroy(prop_ref *ref)
 
 hval *hval_hash_put_all(hval *dest, hval *src)
 {
-	hash_iterator *iter = hash_iterator_create(src->value.hash.members);
+	hash_iterator *iter = hash_iterator_create(src->members);
 	while (iter->current_key != NULL) {
 		hval_hash_put(dest, iter->current_key, iter->current_value);
 		hash_iterator_next(iter);

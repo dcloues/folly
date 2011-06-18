@@ -55,13 +55,11 @@ struct hval {
 			hval *ctx;
 			expression *expr;
 		} deferred_expression;
-		union hash {
-			hash *members;
-			hash *parent;
-		} hash;
 		native_function native_fn;
 	} value;
+	hash *members;
 };
+
 
 hval *hval_create(type);
 void hval_retain(hval *hv);
@@ -83,6 +81,10 @@ int hash_hstr(hstr *);
 expression *expr_create(expression_type);
 void expr_retain(expression *);
 void expr_destroy(expression *);
+void type_init_globals();
+void type_destroy_globals();
+hval *hval_bind_function(hval *, hval *);
+hval *hval_get_self(hval *);
 
 #endif
 

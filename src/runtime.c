@@ -56,15 +56,16 @@ static hstr *FN_EXPR;
 
 void runtime_init_globals()
 {
-
 	FN_ARGS = hstr_create("__args__");
 	FN_EXPR = hstr_create("__expr__");
+	type_init_globals();
 }
 
 void runtime_destroy_globals()
 {
 	hstr_release(FN_ARGS);
 	hstr_release(FN_EXPR);
+	type_destroy_globals();
 }
 
 runtime *runtime_create()
@@ -558,7 +559,8 @@ static hval *eval_expr_invocation(runtime *rt, invocation *inv, hval *context)
 	hval *result = NULL;
 	if (fn->type == native_function_t)
 	{
-		result = fn->value.native_fn(NULL, args);
+		hval *self = hval_get_self(fn);
+		result = fn->value.native_fn(self, args);
 	}
 	else
 	{
