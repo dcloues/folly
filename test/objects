@@ -1,0 +1,8 @@
+Type: Object.clone{
+    init: fn(`( 
+        this.counter: 1
+    ))
+    count: fn(`(
+        this.counter: +(this.counter 1)
+    ))
+}

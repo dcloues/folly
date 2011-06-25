@@ -60,6 +60,9 @@ struct hval {
 	hash *members;
 };
 
+hstr *FN_ARGS;
+hstr *FN_EXPR;
+hstr *FN_SELF;
 
 hval *hval_create(type);
 void hval_retain(hval *hv);
@@ -85,6 +88,7 @@ void type_init_globals();
 void type_destroy_globals();
 hval *hval_bind_function(hval *, hval *);
 hval *hval_get_self(hval *);
+bool hval_is_callable(hval *test);
 
 #endif
 

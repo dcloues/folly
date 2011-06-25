@@ -15,16 +15,19 @@ void print_hash_member(hash *h, hstr *key, hval *value, buffer *b);
 static void hval_destroy(hval *hv);
 static void prop_ref_destroy(prop_ref *ref);
 
-static hstr *FN_SELF;
 
 void type_init_globals()
 {
 	FN_SELF = hstr_create("self");
+	FN_ARGS = hstr_create("__args__");
+	FN_EXPR = hstr_create("__expr__");
 }
 
 void type_destroy_globals()
 {
 	hstr_release(FN_SELF);
+	hstr_release(FN_ARGS);
+	hstr_release(FN_EXPR);
 }
 
 const char *hval_type_string(type t)
@@ -160,6 +163,13 @@ hval *hval_bind_function(hval *function, hval *site)
 	return function;
 }
 
+bool hval_is_callable(hval *test)
+{
+	return test != NULL &&
+		(test->type == native_function_t
+		|| (hval_hash_get(test, FN_EXPR) != NULL && hval_hash_get(test, FN_ARGS) != NULL));
+}
+
 hval *hval_get_self(hval *function)
 {
 	return hval_hash_get(function, FN_SELF);
@@ -276,7 +286,7 @@ void hval_retain(hval *hv)
 void hval_release(hval *hv)
 {
 	hv->refs--;
-	/*hlog("hval_release: %p %d\n", hv, hv->refs);*/
+	hlog("hval_release: %p %d\n", hv, hv->refs);
 	if (hv->refs == 0)
 	{
 		hval_destroy(hv);	
@@ -285,7 +295,7 @@ void hval_release(hval *hv)
 
 static void hval_destroy(hval *hv)
 {
-	//hlog("hval_destroy: %p %s\n", hv, hval_type_string(hv->type));
+	hlog("hval_destroy: %p %s\n", hv, hval_type_string(hv->type));
 	switch (hv->type)
 	{
 		case string_t:

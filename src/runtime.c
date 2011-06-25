@@ -51,20 +51,13 @@ static native_function_spec native_functions[] = {
 	{ NULL, NULL }
 };
 
-static hstr *FN_ARGS;
-static hstr *FN_EXPR;
-
 void runtime_init_globals()
 {
-	FN_ARGS = hstr_create("__args__");
-	FN_EXPR = hstr_create("__expr__");
 	type_init_globals();
 }
 
 void runtime_destroy_globals()
 {
-	hstr_release(FN_ARGS);
-	hstr_release(FN_EXPR);
 	type_destroy_globals();
 }
 
@@ -154,6 +147,10 @@ static void register_builtin(hval *site, char *name, hval *value, bool release_v
 	}
 
 	hval_hash_put(site, str, value);
+	if (hval_is_callable(value)) {
+		hval_bind_function(value, site);
+	}
+
 	hstr_release(str);
 	if (release_value) {
 		hval_release(value);
@@ -585,6 +582,7 @@ static hval *eval_expr_folly_invocation(runtime *rt, hval *fn, hval *args, hval 
 	if (args->type == hash_t) {
 		hval_hash_put_all(fn_context, default_args);
 		hval_hash_put_all(fn_context, args);
+		hval_hash_put(fn_context, FN_SELF, hval_get_self(fn));
 	}
 
 	hval *result = eval_expr_list(rt, expr->value.deferred_expression.expr->operation.list_literal, fn_context);
@@ -635,9 +633,14 @@ static void *expect_token(token *t, type token_type)
 	}
 }
 
-static hval *native_print(hval *this, hval *args)
+static hval *native_print(hval *self, hval *args)
 {
-	char *str = hval_to_string(args);
+	char *str = hval_to_string(self);
+
+	puts(str);
+	free(str);
+
+	str = hval_to_string(args);
 	hlog("native_print: %s\n", str);
 	puts(str);
 	free(str);
