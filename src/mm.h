@@ -7,6 +7,7 @@
 typedef struct {
 	linked_list *gc_roots;
 	linked_list *heap;
+	bool gc;
 } mem;
 
 mem *mem_create();
@@ -16,5 +17,6 @@ hval *mem_alloc(mem *m);
 void mem_free(mem *m, hval *v);
 void mem_add_gc_root(mem *m, hval *root);
 void mem_remove_gc_root(mem *m, hval *root);
+void gc(mem *m);
 
 #endif

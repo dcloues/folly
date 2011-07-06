@@ -73,6 +73,17 @@ ll_node *ll_search(linked_list *list, void *seek, comparator comp) {
 	return NULL;
 }
 
+ll_node *ll_search_simple(linked_list *list, void *seek) {
+	ll_node *node = list->head;
+	while (node) {
+		if (node->data == seek) {
+			return node;
+		}
+	}
+
+	return NULL;
+}
+
 int ll_remove_first(linked_list *list, const void *what) {
 	ll_remove(list, what, 1);
 }

@@ -57,6 +57,7 @@ struct hval {
 		native_function native_fn;
 	} value;
 	hash *members;
+	bool reachable;
 };
 
 #endif

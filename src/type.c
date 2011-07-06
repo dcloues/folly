@@ -13,7 +13,6 @@
 static char *hval_hash_to_string(hash *h);
 static char *hval_list_to_string(linked_list *h);
 void print_hash_member(hash *h, hstr *key, hval *value, buffer *b);
-static void hval_destroy(hval *hv, mem *m);
 static void prop_ref_destroy(prop_ref *ref, mem *m);
 
 
@@ -274,6 +273,7 @@ hval *hval_create(type hval_type, mem *m)
 	hv->members = hash_create((hash_function) hash_hstr, (key_comparator) hstr_comparator);
 	hv->type = hval_type;
 	hv->refs = 1;
+	hv->reachable = false;
 	hlog("hval_create: %p: %s\n", hv, hval_type_string(hval_type));
 	return hv;
 }
@@ -290,11 +290,11 @@ void hval_release(hval *hv, mem *m)
 	hlog("hval_release: %p %d\n", hv, hv->refs);
 	if (hv->refs == 0)
 	{
-		hval_destroy(hv, m);
+		hval_destroy(hv, m, true);
 	}
 }
 
-static void hval_destroy(hval *hv, mem *m)
+void hval_destroy(hval *hv, mem *m, bool recursive)
 {
 	hlog("hval_destroy: %p %s\n", hv, hval_type_string(hv->type));
 	switch (hv->type)
@@ -318,7 +318,11 @@ static void hval_destroy(hval *hv, mem *m)
 		hval_release(val, m);
 	}
 
-	hash_destroy(hv->members, (destructor) hstr_release, (destructor) hval_release_helper);
+	if (recursive) {
+		hash_destroy(hv->members, (destructor) hstr_release, (destructor) hval_release_helper);
+	} else {
+		hash_destroy(hv->members, (destructor) hstr_release, NULL);
+	}
 	hv->members = NULL;
 
 	mem_free(m, hv);

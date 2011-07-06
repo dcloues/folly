@@ -67,6 +67,7 @@ runtime *runtime_create()
 	r->current = NULL;
 	r->mem = mem_create();
 	r->top_level = hval_hash_create(r->mem);
+	mem_add_gc_root(r->mem, r->top_level);
 	hlog("top_level: %p\n", r->top_level);
 	register_top_level(r);
 	return r;
@@ -86,9 +87,13 @@ void runtime_destroy(runtime *r)
 			ll_destroy(r->tokens, (destructor) token_destroy);
 		}
 
-		hlog("releasing top_level\n");
+		hlog("releasing top_level: %p\n", r->top_level);
+		mem_remove_gc_root(r->mem, r->top_level);
 		hval_release(r->top_level, r->mem);
 		r->top_level = NULL;
+		gc(r->mem);
+		mem_destroy(r->mem);
+		r->mem = NULL;
 		hlog("done releasing top_level\n");
 		free(r);
 	}

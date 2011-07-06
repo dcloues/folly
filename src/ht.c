@@ -68,10 +68,13 @@ void hash_entry_destroy(hash_entry *entry, destructor key_dtor, destructor value
 
 	hash_entry_destroy(next, key_dtor, value_dtor, false);
 	hlog("hash_entry_destroy key, value: %p %p\n", key, value);
-	if (key != NULL)
-	key_dtor(key);
-	if (value != NULL)
-	value_dtor(value);
+	if (key != NULL && key_dtor != NULL) {
+		key_dtor(key);
+	}
+
+	if (value != NULL && value_dtor != NULL) {
+		value_dtor(value);
+	}
 
 	if (!top_level)
 	{

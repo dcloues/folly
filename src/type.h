@@ -1,6 +1,7 @@
 #ifndef TYPE_H
 #define TYPE_H
 
+#include <stdbool.h>
 #include "linked_list.h"
 #include "data.h"
 #include "ht.h"
@@ -14,6 +15,7 @@ hstr *FN_SELF;
 hval *hval_create(type t, mem *m);
 void hval_retain(hval *hv);
 void hval_release(hval *hv, mem *m);
+void hval_destroy(hval *hv, mem *m, bool recursive);
 hval *hval_string_create(hstr *str, mem *m);
 hval *hval_number_create(int num, mem *m);
 hval *hval_list_create(mem *m);
