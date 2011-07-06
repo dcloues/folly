@@ -18,13 +18,13 @@ int main(int argc, char **argv)
 
 	runtime_init_globals();
 	runtime *r = runtime_create();
-	/*hval *ctx = runtime_eval(r, argv[1]);*/
+	hval *ctx = runtime_eval(r, argv[1]);
 	hlog("calling runtime_destroy\n");
-	runtime_destroy(r);
-	r = NULL;
 
 	hlog("releasing context\n");
-	/*hval_release(ctx);*/
+	hval_release(ctx, r->mem);
+	runtime_destroy(r);
+	r = NULL;
 
 	runtime_destroy_globals();
 

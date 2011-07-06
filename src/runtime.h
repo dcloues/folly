@@ -1,5 +1,6 @@
 #include "type.h"
 #include "lexer.h"
+#include "mm.h"
 #include "string.h"
 
 #ifndef RUNTIME_H
@@ -10,6 +11,7 @@ typedef struct {
 	ll_node *current;
 	hval *top_level;
 	hval *last_result;
+	mem *mem;
 } runtime;
 
 typedef struct _native_function_spec {

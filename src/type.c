@@ -7,13 +7,14 @@
 #include "ht_builtins.h"
 #include "linked_list.h"
 #include "log.h"
+#include "mm.h"
 #include "type.h"
 
 static char *hval_hash_to_string(hash *h);
 static char *hval_list_to_string(linked_list *h);
 void print_hash_member(hash *h, hstr *key, hval *value, buffer *b);
-static void hval_destroy(hval *hv);
-static void prop_ref_destroy(prop_ref *ref);
+static void hval_destroy(hval *hv, mem *m);
+static void prop_ref_destroy(prop_ref *ref, mem *m);
 
 
 void type_init_globals()
@@ -44,32 +45,32 @@ const char *hval_type_string(type t)
 	}
 }
 
-hval *hval_string_create(hstr *str)
+hval *hval_string_create(hstr *str, mem *m)
 {
 	hstr_retain(str);
-	hval *hv = hval_create(string_t);
+	hval *hv = hval_create(string_t, m);
 	hv->value.str = str;
 	return hv;
 }
 
-hval *hval_number_create(int number)
+hval *hval_number_create(int number, mem *m)
 {
-	hval *hv = hval_create(number_t);
+	hval *hv = hval_create(number_t, m);
 	hv->value.number = number;
 	return hv;
 }
 
-hval *hval_hash_create(void)
+hval *hval_hash_create(mem *m)
 {
-	return hval_create(hash_t);
+	return hval_create(hash_t, m);
 }
 
-hval *hval_hash_create_child(hval *parent)
+hval *hval_hash_create_child(hval *parent, mem *m)
 {
 	hlog("hval_hash_create_child\n");
-	hval *hv = hval_hash_create();
+	hval *hv = hval_hash_create(m);
 	hstr *key = hstr_create("__parent__");
-	hval_hash_put(hv, key, parent);
+	hval_hash_put(hv, key, parent, m);
 	hstr_release(key);
 	return hv;
 }
@@ -98,7 +99,7 @@ hval *hval_hash_get(hval *hv, hstr *key)
 	return val;
 }
 
-hval *hval_hash_put(hval *hv, hstr *key, hval *value)
+hval *hval_hash_put(hval *hv, hstr *key, hval *value, mem *m)
 {
 	// TODO Handle overwrite/cleanup
 	char *str = hval_to_string(value);
@@ -116,16 +117,16 @@ hval *hval_hash_put(hval *hv, hstr *key, hval *value)
 		str = hval_to_string(previous);
 		hlog("previous value: %p %s\n", previous, str);
 		free(str);
-		hval_release(previous);
+		hval_release(previous, m);
 		hstr_release(key);
 	}
 
 	return value;
 }
 
-hval *hval_list_create(void)
+hval *hval_list_create(mem *m)
 {
-	hval *hv = hval_create(list_t);
+	hval *hv = hval_create(list_t, m);
 	hv->value.list = ll_create();
 	return hv;
 }
@@ -150,16 +151,16 @@ void hval_list_insert_head(hval *list, hval *val)
 	ll_insert_head(list->value.list, val);
 }
 
-hval *hval_native_function_create(native_function fn)
+hval *hval_native_function_create(native_function fn, mem *m)
 {
-	hval *hv = hval_create(native_function_t);
+	hval *hv = hval_create(native_function_t, m);
 	hv->value.native_fn = fn;
 	return hv;
 }
 
-hval *hval_bind_function(hval *function, hval *site)
+hval *hval_bind_function(hval *function, hval *site, mem *m)
 {
-	hval_hash_put(function, FN_SELF, site);
+	hval_hash_put(function, FN_SELF, site, m);
 	return function;
 }
 
@@ -267,9 +268,9 @@ void print_hash_member(hash *h, hstr *key, hval *value, buffer *b)
 	}
 }
 
-hval *hval_create(type hval_type)
+hval *hval_create(type hval_type, mem *m)
 {
-	hval *hv = malloc(sizeof(hval));
+	hval *hv = mem_alloc(m);
 	hv->members = hash_create((hash_function) hash_hstr, (key_comparator) hstr_comparator);
 	hv->type = hval_type;
 	hv->refs = 1;
@@ -283,17 +284,17 @@ void hval_retain(hval *hv)
 	/*hlog("hval_retain: %p: %d\n", hv, hv->refs);*/
 }
 
-void hval_release(hval *hv)
+void hval_release(hval *hv, mem *m)
 {
 	hv->refs--;
 	hlog("hval_release: %p %d\n", hv, hv->refs);
 	if (hv->refs == 0)
 	{
-		hval_destroy(hv);	
+		hval_destroy(hv, m);
 	}
 }
 
-static void hval_destroy(hval *hv)
+static void hval_destroy(hval *hv, mem *m)
 {
 	hlog("hval_destroy: %p %s\n", hv, hval_type_string(hv->type));
 	switch (hv->type)
@@ -308,14 +309,19 @@ static void hval_destroy(hval *hv)
 		case hash_t:
 			break;
 		case deferred_expression_t:
-			hval_release(hv->value.deferred_expression.ctx);
-			expr_destroy(hv->value.deferred_expression.expr);
+			hval_release(hv->value.deferred_expression.ctx, m);
+			expr_destroy(hv->value.deferred_expression.expr, m);
 			break;
 	}
-	hash_destroy(hv->members, (destructor) hstr_release, (destructor)hval_release);
+
+	void hval_release_helper(hval *val) {
+		hval_release(val, m);
+	}
+
+	hash_destroy(hv->members, (destructor) hstr_release, (destructor) hval_release_helper);
 	hv->members = NULL;
 
-	free(hv);
+	mem_free(m, hv);
 }
 
 int hash_hstr(hstr *hs)
@@ -342,7 +348,7 @@ void expr_retain(expression *expr)
 	expr->refs++;
 }
 
-void expr_destroy(expression *expr)
+void expr_destroy(expression *expr, mem *m)
 {
 	expr->refs--;
 	if (expr->refs > 0)
@@ -350,40 +356,44 @@ void expr_destroy(expression *expr)
 		return;
 	}
 
+	void expr_destructor(expression *to_destroy) {
+		expr_destroy(to_destroy, m);
+	}
+
 	hlog("expr_destroy %p %d\n", expr, expr->type);
 	switch (expr->type)
 	{
 		case expr_prop_ref_t:
-			prop_ref_destroy(expr->operation.prop_ref);
+			prop_ref_destroy(expr->operation.prop_ref, m);
 			break;
 		case expr_prop_set_t:
-			prop_ref_destroy(expr->operation.prop_set->ref);
-			expr_destroy(expr->operation.prop_set->value);
+			prop_ref_destroy(expr->operation.prop_set->ref, m);
+			expr_destroy(expr->operation.prop_set->value, m);
 			free(expr->operation.prop_set);
 			break;
 		case expr_list_literal_t:
-			ll_destroy(expr->operation.list_literal, (destructor) expr_destroy);
+			ll_destroy(expr->operation.list_literal, (destructor) expr_destructor);
 			break;
 		case expr_list_t:
-			ll_destroy(expr->operation.expr_list, (destructor) expr_destroy);
+			ll_destroy(expr->operation.expr_list, (destructor) expr_destructor);
 			break;
 		case expr_primitive_t:
-			hval_release(expr->operation.primitive);
+			hval_release(expr->operation.primitive, m);
 			break;
 		case expr_hash_literal_t:
-			hash_destroy(expr->operation.hash_literal, (destructor) hstr_release, (destructor) expr_destroy);
+			hash_destroy(expr->operation.hash_literal, (destructor) hstr_release, (destructor) expr_destructor);
 			break;
 		case expr_invocation_t:
 			if (expr->operation.invocation->list_args != NULL) {
-				expr_destroy(expr->operation.invocation->list_args);
+				expr_destroy(expr->operation.invocation->list_args, m);
 			} else if (expr->operation.invocation->hash_args != NULL) {
-				expr_destroy(expr->operation.invocation->hash_args);
+				expr_destroy(expr->operation.invocation->hash_args, m);
 			}
-			expr_destroy(expr->operation.invocation->function);
+			expr_destroy(expr->operation.invocation->function, m);
 			free(expr->operation.invocation);
 			break;
 		case expr_deferred_t:
-			expr_destroy(expr->operation.deferred_expression);
+			expr_destroy(expr->operation.deferred_expression, m);
 			break;
 		default:
 			hlog("ERROR: unexpected type passed to expr_destroy\n");
@@ -393,22 +403,22 @@ void expr_destroy(expression *expr)
 	free(expr);
 }
 
-static void prop_ref_destroy(prop_ref *ref)
+static void prop_ref_destroy(prop_ref *ref, mem *m)
 {
 	if (ref->site)
 	{
-		expr_destroy(ref->site);
+		expr_destroy(ref->site, m);
 	}
 
 	hstr_release(ref->name);
 	free(ref);
 }
 
-hval *hval_hash_put_all(hval *dest, hval *src)
+hval *hval_hash_put_all(hval *dest, hval *src, mem *m)
 {
 	hash_iterator *iter = hash_iterator_create(src->members);
 	while (iter->current_key != NULL) {
-		hval_hash_put(dest, iter->current_key, iter->current_value);
+		hval_hash_put(dest, iter->current_key, iter->current_value, m);
 		hash_iterator_next(iter);
 	}
 
