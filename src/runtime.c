@@ -68,7 +68,15 @@ runtime *runtime_create()
 	r->mem = mem_create();
 	r->top_level = hval_hash_create(r->mem);
 	mem_add_gc_root(r->mem, r->top_level);
-	hlog("top_level: %p\n", r->top_level);
+
+	// create a separate gc root for primitives creating while parsing
+	// input. these primitives don't start with any other references,
+	// so this is necessary to keep them from being collected.
+	r->primitive_pool = hval_list_create(r->mem);
+	mem_add_gc_root(r->mem, r->primitive_pool);
+	printf("primitive pool: %p\n", r->primitive_pool);
+
+	//hlog("top_level: %p\n", r->top_level);
 	register_top_level(r);
 	return r;
 }
@@ -89,8 +97,10 @@ void runtime_destroy(runtime *r)
 
 		hlog("releasing top_level: %p\n", r->top_level);
 		mem_remove_gc_root(r->mem, r->top_level);
-		hval_release(r->top_level, r->mem);
+		//hval_release(r->top_level, r->mem);
 		r->top_level = NULL;
+
+		mem_remove_gc_root(r->mem, r->primitive_pool);
 		gc(r->mem);
 		mem_destroy(r->mem);
 		r->mem = NULL;
@@ -170,21 +180,24 @@ hval *runtime_eval(runtime *runtime, char *file)
 	runtime_parse(runtime, file);
 	// this will have type=expr_list_t
 	hlog("analyzing...\n");
+
 	expression *expr = runtime_analyze(runtime);
+
 	hlog("creating main context\n");
 	hval *context = hval_hash_create_child(runtime->top_level, runtime->mem);
+	mem_add_gc_root(runtime->mem, context);
+
 	hlog("beginning evaluation\n");
 	hval *ret = runtime_evaluate_expression(runtime, expr, context);
 	hlog("runtime_eval complete - got return value %p\n", ret);
+
 	expr_destroy(expr, runtime->mem);
+	mem_remove_gc_root(runtime->mem, context);
 	expr = NULL;
+
 	char *str = hval_to_string(ret);
 	hlog("eval got result: %s", str);
 	free(str);
-	if (ret != NULL)
-	{
-		hval_release(ret, runtime->mem);
-	}
 
 	return context;
 }
@@ -350,6 +363,7 @@ expression *read_string(runtime *rt)
 	token *t = runtime_current_token(rt);
 	expression *expr = expr_create(expr_primitive_t);
 	expr->operation.primitive = hval_string_create(t->value.string, rt->mem);
+	hval_list_insert_head(rt->primitive_pool, expr->operation.primitive);
 	return expr;
 }
 
@@ -358,6 +372,7 @@ expression *read_number(runtime *rt)
 	token *t = runtime_current_token(rt);
 	expression *expr = expr_create(expr_primitive_t);
 	expr->operation.primitive = hval_number_create(t->value.number, rt->mem);
+	hval_list_insert_head(rt->primitive_pool, expr->operation.primitive);
 	return expr;
 }
 
@@ -439,10 +454,10 @@ static hval *eval_expr_list(runtime *rt, linked_list *expr_list, hval *context)
 	{
 		expr = (expression *) current->data;
 		new_result = runtime_evaluate_expression(rt, expr, context);
-		if (result != NULL)
-		{
-			hval_release(result, rt->mem);
-		}
+		/*if (result != NULL)*/
+		/*{*/
+			/*hval_release(result, rt->mem);*/
+		/*}*/
 
 		result = new_result;
 		current = current->next;
@@ -455,6 +470,7 @@ static hval *eval_expr_list_literal(runtime *rt, expression *expr_list, hval *co
 {
 	hlog("eval_expr_list_literal\n");
 	hval *list = hval_list_create(rt->mem);
+	mem_add_gc_root(rt->mem, list);
 	ll_node *current = expr_list->operation.list_literal->head;
 	expression *expr = NULL;
 	hval *result = NULL;
@@ -468,12 +484,15 @@ static hval *eval_expr_list_literal(runtime *rt, expression *expr_list, hval *co
 		current = current->next;
 	}
 
+	mem_remove_gc_root(rt->mem, list);
+
 	return list;
 }
 
 static hval *eval_expr_hash_literal(runtime *rt, hash *def, hval *context)
 {
 	hval *result = hval_hash_create(rt->mem);
+	mem_add_gc_root(rt->mem, result);
 	hash_iterator *iter = hash_iterator_create(def);
 	while (iter->current_key != NULL)
 	{
@@ -484,6 +503,7 @@ static hval *eval_expr_hash_literal(runtime *rt, hash *def, hval *context)
 	}
 
 	hash_iterator_destroy(iter);
+	mem_remove_gc_root(rt->mem, result);
 	return result;
 }
 
@@ -515,6 +535,7 @@ static hval *eval_prop_ref(runtime *rt, prop_ref *ref, hval *context)
 static hval *eval_prop_set(runtime *rt, prop_set *set, hval *context)
 {
 	hval *site = get_prop_ref_site(rt, set->ref, context);
+	mem_add_gc_root(rt->mem, site);
 	if (site->type != hash_t)
 	{
 		hlog("eval_prop_set expected a hash");
@@ -527,6 +548,8 @@ static hval *eval_prop_set(runtime *rt, prop_set *set, hval *context)
 	{
 		hval_release(site, rt->mem);
 	}
+
+	mem_remove_gc_root(rt->mem, site);
 	return value;
 }
 
@@ -559,7 +582,6 @@ static hval *eval_expr_invocation(runtime *rt, invocation *inv, hval *context)
 		exit(1);
 	}
 
-	/*hval *args = eval_expr_list_literal(rt, inv->list_args, context);*/
 	hval *result = NULL;
 	if (fn->type == native_function_t)
 	{
@@ -570,8 +592,9 @@ static hval *eval_expr_invocation(runtime *rt, invocation *inv, hval *context)
 	{
 		result = eval_expr_folly_invocation(rt, fn, args, context);
 	}
-	hval_release(args, rt->mem);
-	hval_release(fn, rt->mem);
+
+	gc_with_temp_root(rt->mem, result);
+
 	hlog("eval_expr_invocation got result: %p\n", result);
 
 	return result;
@@ -586,6 +609,7 @@ static hval *eval_expr_folly_invocation(runtime *rt, hval *fn, hval *args, hval 
 	}
 
 	hval *fn_context = hval_hash_create_child(expr->value.deferred_expression.ctx, rt->mem);
+	mem_add_gc_root(rt->mem, fn_context);
 	if (args->type == hash_t) {
 		hval_hash_put_all(fn_context, default_args, rt->mem);
 		hval_hash_put_all(fn_context, args, rt->mem);
@@ -593,7 +617,12 @@ static hval *eval_expr_folly_invocation(runtime *rt, hval *fn, hval *args, hval 
 	}
 
 	hval *result = eval_expr_list(rt, expr->value.deferred_expression.expr->operation.list_literal, fn_context);
-	hval_release(fn_context, rt->mem);
+	mem_remove_gc_root(rt->mem, fn_context);
+	/*mem_remove_gc_root(rt->mem, fn_context);*/
+	/*mem_add_gc_root(rt->mem, result);*/
+	/*gc(rt->mem);*/
+	/*mem_remove_gc_root(rt->mem, result);*/
+	//hval_release(fn_context, rt->mem);
 
 	return result;
 }

@@ -40,12 +40,6 @@ hval *mem_alloc(mem *m) {
 }
 
 void mem_free(mem *m, hval *hv) {
-	/*if (ll_search_simple(m->heap, hv))*/
-	/*if (!m->gc) {*/
-		/*ll_remove_first(m->heap, hv);*/
-	/*}*/
-	/*free(hv);*/
-
 	if (ll_remove_first(m->heap, hv) == 1) {
 		free(hv);
 	}
@@ -63,6 +57,16 @@ void mem_remove_gc_root(mem *m, hval *root) {
 	}
 }
 
+void gc_with_temp_root(mem *m, hval *root) {
+	if (root) {
+		mem_add_gc_root(m, root);
+		gc(m);
+		mem_remove_gc_root(m, root);
+	} else {
+		gc(m);
+	}
+}
+
 void gc(mem *m) {
 	m->gc = true;
 	ll_node *node = m->heap->head;
@@ -75,7 +79,7 @@ void gc(mem *m) {
 	node = m->gc_roots->head;
 	hlog("marking\n");
 	while (node) {
-		printf("gc root: %p\n", node->data);
+		hlog("gc root: %p\n", node->data);
 		mark(node->data);
 		node = node->next;
 	}
@@ -85,9 +89,9 @@ void gc(mem *m) {
 }
 
 void mark(hval *hv) {
-	printf("mark: %p\n", hv);
+	hlog("mark: %p\n", hv);
 
-	if (hv->reachable) {
+	if (!hv || hv->reachable) {
 		return;
 	}
 
@@ -100,6 +104,14 @@ void mark(hval *hv) {
 		}
 
 		hash_iterator_destroy(iter);
+	}
+
+	if (hv->type == list_t) {
+		ll_node *node = hv->value.list->head;
+		while (node) {
+			mark((hval *) node->data);
+			node = node->next;
+		}
 	}
 }
 
@@ -116,6 +128,7 @@ void sweep(mem *mem)
 		if (data->reachable) {
 			ll_insert_head(new_heap, data);
 		} else {
+			hlog("sweeping: %p\n", data);
 			hval_destroy(data, mem, false);
 		}
 

@@ -18,5 +18,6 @@ void mem_free(mem *m, hval *v);
 void mem_add_gc_root(mem *m, hval *root);
 void mem_remove_gc_root(mem *m, hval *root);
 void gc(mem *m);
+void gc_with_temp_root(mem *m, hval *root);
 
 #endif

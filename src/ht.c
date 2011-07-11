@@ -244,6 +244,7 @@ hash_iterator *hash_iterator_create(hash *h)
 	it->current_key = NULL;
 	it->current_value = NULL;
 	hash_iterator_next(it);
+	return it;
 }
 
 void hash_iterator_next(hash_iterator *iter)

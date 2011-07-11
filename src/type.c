@@ -304,12 +304,18 @@ void hval_destroy(hval *hv, mem *m, bool recursive)
 			hv->value.str = NULL;
 			break;
 		case list_t:
-			ll_destroy(hv->value.list, (destructor) hval_release);
+			if (recursive) {
+				ll_destroy(hv->value.list, (destructor) hval_release);
+			} else {
+				ll_destroy(hv->value.list, NULL);
+			}
 			break;
 		case hash_t:
 			break;
 		case deferred_expression_t:
-			hval_release(hv->value.deferred_expression.ctx, m);
+			if (recursive) {
+				hval_release(hv->value.deferred_expression.ctx, m);
+			}
 			expr_destroy(hv->value.deferred_expression.expr, m);
 			break;
 	}

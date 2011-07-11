@@ -12,6 +12,7 @@ typedef struct {
 	hval *top_level;
 	hval *last_result;
 	mem *mem;
+	hval *primitive_pool;
 } runtime;
 
 typedef struct _native_function_spec {
