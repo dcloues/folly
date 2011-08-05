@@ -125,7 +125,7 @@ void runtime_destroy(runtime *r)
 static void register_top_level(runtime *r)
 {
 	int i = 0;
-	hlog("Registering top levels\n");
+	hlog("Registering top levels under %p\n", r->top_level);
 	for (i = 0; i < sizeof(native_functions); i++) {
 		if (native_functions[i].path == NULL) {
 			break;
@@ -176,6 +176,7 @@ static void register_builtin(runtime *rt, hval *site, char *name, hval *value, b
 		++i;
 	}
 
+	hlog("registering %p at %p\n", value, site);
 	hval_hash_put(site, str, value, rt->mem);
 	if (hval_is_callable(value)) {
 		hval_bind_function(value, site, rt->mem);
@@ -568,12 +569,14 @@ static hval *eval_prop_set(runtime *rt, prop_set *set, hval *context)
 
 static hval *get_prop_ref_site(runtime *rt, prop_ref *ref, hval *context)
 {
+	hlog("get_prop_ref_site: %p\n", ref->site);
 	if (ref->site != NULL)
 	{
 		return runtime_evaluate_expression(rt, ref->site, context);
 	}
 	else
 	{
+		hlog("falling back to context\n");
 		return context;
 	}
 }
@@ -622,6 +625,7 @@ static hval *eval_expr_folly_invocation(runtime *rt, hval *fn, hval *args, hval 
 	}
 
 	hval *fn_context = hval_hash_create_child(expr->value.deferred_expression.ctx, rt);
+	hlog("created function context %p with parent %p\n", fn_context, expr->value.deferred_expression.ctx);
 	mem_add_gc_root(rt->mem, fn_context);
 	if (args->type == hash_t) {
 		hval_hash_put_all(fn_context, default_args, rt->mem);
@@ -684,7 +688,6 @@ static void *expect_token(token *t, type token_type)
 
 static hval *native_print(runtime *rt, hval *self, hval *args)
 {
-	puts("native_print!");
 	/*char *str = hval_to_string(self);*/
 
 	/*puts(str);*/

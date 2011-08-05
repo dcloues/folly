@@ -255,11 +255,11 @@ char *hval_hash_to_string(hash *h)
 	buffer *b = buffer_create(128);
 	buffer_printf(b, "size: %d {", h->size);
 
-	hash_iterate(h, (key_value_callback) print_hash_member, b);
-	if (h->size > 0)
-	{
-		buffer_shrink(b, 1);
-	}
+	/*hash_iterate(h, (key_value_callback) print_hash_member, b);*/
+	/*if (h->size > 0)*/
+	/*{*/
+		/*buffer_shrink(b, 1);*/
+	/*}*/
 	buffer_append_char(b, '}');
 
 	char *str = buffer_to_string(b);
@@ -471,7 +471,9 @@ hval *hval_hash_put_all(hval *dest, hval *src, mem *m)
 {
 	hash_iterator *iter = hash_iterator_create(src->members);
 	while (iter->current_key != NULL) {
-		hval_hash_put(dest, iter->current_key, iter->current_value, m);
+		if (iter->current_key != PARENT) {
+			hval_hash_put(dest, iter->current_key, iter->current_value, m);
+		}
 		hash_iterator_next(iter);
 	}
 
