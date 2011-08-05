@@ -1,0 +1,3 @@
+io2: io.clone()
+io.print(io2.clone)
+io2.print(io2.clone)

@@ -14,13 +14,14 @@ static char *hval_hash_to_string(hash *h);
 static char *hval_list_to_string(linked_list *h);
 void print_hash_member(hash *h, hstr *key, hval *value, buffer *b);
 static void prop_ref_destroy(prop_ref *ref, mem *m);
-
+static void hval_clone_hash(hval *src, hval *dest, mem *mem);
 
 void type_init_globals()
 {
 	FN_SELF = hstr_create("self");
 	FN_ARGS = hstr_create("__args__");
 	FN_EXPR = hstr_create("__expr__");
+	PARENT = hstr_create("__parent__");
 }
 
 void type_destroy_globals()
@@ -28,6 +29,7 @@ void type_destroy_globals()
 	hstr_release(FN_SELF);
 	hstr_release(FN_ARGS);
 	hstr_release(FN_EXPR);
+	hstr_release(PARENT);
 }
 
 const char *hval_type_string(type t)
@@ -44,37 +46,70 @@ const char *hval_type_string(type t)
 	}
 }
 
-hval *hval_string_create(hstr *str, mem *m)
+hval *hval_clone(hval *val, runtime *rt) {
+	hlog("hval_clone: %p\n", val);
+	hval *clone = hval_create(val->type, rt);
+	switch (val->type) {
+	case hash_t:
+		hval_clone_hash(val, clone, rt->mem);
+		break;
+	default:
+		hlog("hval_clone() does not support type %s", hval_type_string(val->type));
+		exit(1);
+		break;
+	}
+
+	return clone;
+}
+
+void hval_clone_hash(hval *src, hval *dest, mem *mem) {
+	hash_iterator *iter = hash_iterator_create(src->members);
+	while (iter->current_key) {
+		char *str = hstr_to_str(iter->current_key);
+		hlog("clone key: %s\n", str);
+		free(str);
+
+		hval *value = iter->current_value;
+		if (value && hval_is_callable(value)) {
+			hval_bind_function(value, dest, mem);
+		}
+		hval_hash_put(dest, iter->current_key, value, mem);
+
+		hash_iterator_next(iter);
+	}
+}
+
+hval *hval_string_create(hstr *str, runtime *rt)
 {
 	hstr_retain(str);
-	hval *hv = hval_create(string_t, m);
+	hval *hv = hval_create(string_t, rt);
 	hv->value.str = str;
 	return hv;
 }
 
-hval *hval_number_create(int number, mem *m)
+hval *hval_number_create(int number, runtime *rt)
 {
-	hval *hv = hval_create(number_t, m);
+	hval *hv = hval_create(number_t, rt);
 	hv->value.number = number;
 	return hv;
 }
 
-hval *hval_hash_create(mem *m)
+hval *hval_hash_create(runtime *rt)
 {
-	return hval_create(hash_t, m);
+	return hval_create(hash_t, rt);
 }
 
-hval *hval_hash_create_child(hval *parent, mem *m)
+hval *hval_hash_create_child(hval *parent, runtime *rt)
 {
 	hlog("hval_hash_create_child\n");
-	hval *hv = hval_hash_create(m);
+	hval *hv = hval_hash_create(rt);
 	hstr *key = hstr_create("__parent__");
-	hval_hash_put(hv, key, parent, m);
+	hval_hash_put(hv, key, parent, rt->mem);
 	hstr_release(key);
 	return hv;
 }
 
-hval *hval_hash_get(hval *hv, hstr *key)
+hval *hval_hash_get(hval *hv, hstr *key, mem *mem)
 {
 	hlog("hval_hash_get: %s (%p)\n", key->str, hv);
 	if (hv == NULL)
@@ -90,9 +125,12 @@ hval *hval_hash_get(hval *hv, hstr *key)
 		char *dump_str = hval_to_string(hv);
 		hlog("%s not found in %s\n", key->str, dump_str);
 		free(dump_str);
-		hstr *parent_key = hstr_create("__parent__");
-		val = hval_hash_get(hash_get(h, parent_key), key);
-		hstr_release(parent_key);
+		hval *parent = hash_get(h, PARENT);
+		val = hval_hash_get(hash_get(h, PARENT), key, mem);
+		if (mem && val && hval_is_callable(val) && hval_get_self(val) == parent) {
+			hval_bind_function(val, hv, mem);
+		}
+
 	}
 
 	return val;
@@ -123,9 +161,9 @@ hval *hval_hash_put(hval *hv, hstr *key, hval *value, mem *m)
 	return value;
 }
 
-hval *hval_list_create(mem *m)
+hval *hval_list_create(runtime *rt)
 {
-	hval *hv = hval_create(list_t, m);
+	hval *hv = hval_create(list_t, rt);
 	hv->value.list = ll_create();
 	return hv;
 }
@@ -150,9 +188,9 @@ void hval_list_insert_head(hval *list, hval *val)
 	ll_insert_head(list->value.list, val);
 }
 
-hval *hval_native_function_create(native_function fn, mem *m)
+hval *hval_native_function_create(native_function fn, runtime *rt)
 {
-	hval *hv = hval_create(native_function_t, m);
+	hval *hv = hval_create(native_function_t, rt);
 	hv->value.native_fn = fn;
 	return hv;
 }
@@ -167,12 +205,12 @@ bool hval_is_callable(hval *test)
 {
 	return test != NULL &&
 		(test->type == native_function_t
-		|| (hval_hash_get(test, FN_EXPR) != NULL && hval_hash_get(test, FN_ARGS) != NULL));
+		|| (hval_hash_get(test, FN_EXPR, NULL) != NULL && hval_hash_get(test, FN_ARGS, NULL) != NULL));
 }
 
 hval *hval_get_self(hval *function)
 {
-	return hval_hash_get(function, FN_SELF);
+	return hval_hash_get(function, FN_SELF, NULL);
 }
 
 char *hval_to_string(hval *hval)
@@ -267,10 +305,15 @@ void print_hash_member(hash *h, hstr *key, hval *value, buffer *b)
 	}
 }
 
-hval *hval_create(type hval_type, mem *m)
+hval *hval_create(type hval_type, runtime *rt)
 {
-	hval *hv = mem_alloc(m);
+	hval *hv = mem_alloc(rt->mem);
 	hv->members = hash_create((hash_function) hash_hstr, (key_comparator) hstr_comparator);
+	if (rt->object_root) {
+		hval_hash_put(hv, PARENT, rt->object_root, rt->mem);
+	} else {
+		hlog("hval_create: ROOT OBJECT NULL");
+	}
 	hv->type = hval_type;
 	hv->refs = 1;
 	hv->reachable = false;

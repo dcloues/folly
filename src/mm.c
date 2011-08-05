@@ -2,6 +2,7 @@
 #include <stdlib.h>
 #include <stdio.h>
 #include "linked_list.h"
+#include "log.h"
 #include "mm.h"
 #include "type.h"
 
@@ -79,7 +80,7 @@ void gc(mem *m) {
 	node = m->gc_roots->head;
 	hlog("marking\n");
 	while (node) {
-		hlog("gc root: %p\n", node->data);
+		/*hlog("gc root: %p\n", node->data);*/
 		mark(node->data);
 		node = node->next;
 	}
@@ -89,7 +90,7 @@ void gc(mem *m) {
 }
 
 void mark(hval *hv) {
-	hlog("mark: %p\n", hv);
+	/*hlog("mark: %p\n", hv);*/
 
 	if (!hv || hv->reachable) {
 		return;

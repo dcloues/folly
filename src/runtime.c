@@ -16,8 +16,8 @@ token *runtime_peek_token(runtime *runtime);
 token *runtime_get_next_token(runtime *runtime);
 static void *expect_token(token *t, type token_type);
 static void register_top_level(runtime *);
-static void register_builtin(mem *, hval *, char *, hval *, bool);
-static void register_builtin_r(mem *, hval *, char *, hval *);
+static void register_builtin(runtime *, hval *, char *, hval *, bool);
+static void register_builtin_r(runtime *, hval *, char *, hval *);
 
 static expression *read_complete_expression(runtime *);
 static expression *read_identifier(runtime *);
@@ -42,9 +42,14 @@ static hval *get_prop_ref_site(runtime *, prop_ref *, hval *);
 static hval *native_print(runtime *, hval *this, hval *args);
 static hval *native_add(runtime *, hval *this, hval *args);
 static hval *native_fn(runtime *, hval *this, hval *args);
+static hval *native_clone(runtime *, hval *this, hval *args);
+static hval *native_extend(runtime *, hval *this, hval *args);
+
 #define runtime_current_token(rt) ((token *) rt->current->data)
 
 static native_function_spec native_functions[] = {
+	{ "Object.extend", (native_function) native_extend },
+	{ "Object.clone", (native_function) native_clone },
 	{ "io.print", (native_function) native_print },
 	{ "+", (native_function) native_add },
 	{ "fn", (native_function) native_fn },
@@ -66,15 +71,23 @@ runtime *runtime_create()
 	runtime *r = malloc(sizeof(runtime));
 	r->current = NULL;
 	r->mem = mem_create();
-	r->top_level = hval_hash_create(r->mem);
+
+	r->object_root = NULL;
+	r->object_root = hval_hash_create(r);
+	mem_add_gc_root(r->mem, r->object_root);
+
+	r->top_level = hval_hash_create(r);
+	hstr *str = hstr_create("Object");
+	hval_hash_put(r->top_level, str, r->object_root, r->mem);
+	hstr_release(str);
 	mem_add_gc_root(r->mem, r->top_level);
 
 	// create a separate gc root for primitives creating while parsing
 	// input. these primitives don't start with any other references,
 	// so this is necessary to keep them from being collected.
-	r->primitive_pool = hval_list_create(r->mem);
+	r->primitive_pool = hval_list_create(r);
 	mem_add_gc_root(r->mem, r->primitive_pool);
-	printf("primitive pool: %p\n", r->primitive_pool);
+	/*printf("primitive pool: %p\n", r->primitive_pool);*/
 
 	//hlog("top_level: %p\n", r->top_level);
 	register_top_level(r);
@@ -111,26 +124,26 @@ void runtime_destroy(runtime *r)
 
 static void register_top_level(runtime *r)
 {
-	hlog("Registering top levels\n");
 	int i = 0;
-	for (; i < sizeof(native_functions); i++) {
+	hlog("Registering top levels\n");
+	for (i = 0; i < sizeof(native_functions); i++) {
 		if (native_functions[i].path == NULL) {
 			break;
 		}
 		hlog("registering: %s\n", native_functions[i].path);
-		register_builtin_r(r->mem,
+		register_builtin_r(r,
 			r->top_level,
 			native_functions[i].path,
-			hval_native_function_create(native_functions[i].function, r->mem));
+			hval_native_function_create(native_functions[i].function, r));
 	}
 }
 
-static void register_builtin_r(mem *m, hval *site, char *name, hval *value)
+static void register_builtin_r(runtime *rt, hval *site, char *name, hval *value)
 {
-	register_builtin(m, site, name, value, true);
+	register_builtin(rt, site, name, value, true);
 }
 
-static void register_builtin(mem *m, hval *site, char *name, hval *value, bool release_value)
+static void register_builtin(runtime *rt, hval *site, char *name, hval *value, bool release_value)
 {
 	int start = 0;
 	int i = 0;
@@ -146,12 +159,12 @@ static void register_builtin(mem *m, hval *site, char *name, hval *value, bool r
 	{
 		if (name[i] == '.') {
 			str = hstr_create_len(name + start, i - start);
-			new_site = hval_hash_get(site, str);
+			new_site = hval_hash_get(site, str, rt->mem);
 			if (new_site == NULL) {
-				new_site = hval_hash_create(m);
-				hval_hash_put(site, str, new_site, m);
+				new_site = hval_hash_create(rt);
+				hval_hash_put(site, str, new_site, rt->mem);
 			}
-			hval_release(site, m);
+			hval_release(site, rt->mem);
 			site = new_site;
 			hstr_release(str);
 			start = i + 1;
@@ -163,16 +176,16 @@ static void register_builtin(mem *m, hval *site, char *name, hval *value, bool r
 		++i;
 	}
 
-	hval_hash_put(site, str, value, m);
+	hval_hash_put(site, str, value, rt->mem);
 	if (hval_is_callable(value)) {
-		hval_bind_function(value, site, m);
+		hval_bind_function(value, site, rt->mem);
 	}
 
 	hstr_release(str);
 	if (release_value) {
-		hval_release(value, m);
+		hval_release(value, rt->mem);
 	}
-	hval_release(site, m);
+	hval_release(site, rt->mem);
 }
 
 hval *runtime_eval(runtime *runtime, char *file)
@@ -184,7 +197,7 @@ hval *runtime_eval(runtime *runtime, char *file)
 	expression *expr = runtime_analyze(runtime);
 
 	hlog("creating main context\n");
-	hval *context = hval_hash_create_child(runtime->top_level, runtime->mem);
+	hval *context = hval_hash_create_child(runtime->top_level, runtime);
 	mem_add_gc_root(runtime->mem, context);
 
 	hlog("beginning evaluation\n");
@@ -362,7 +375,7 @@ expression *read_string(runtime *rt)
 {
 	token *t = runtime_current_token(rt);
 	expression *expr = expr_create(expr_primitive_t);
-	expr->operation.primitive = hval_string_create(t->value.string, rt->mem);
+	expr->operation.primitive = hval_string_create(t->value.string, rt);
 	hval_list_insert_head(rt->primitive_pool, expr->operation.primitive);
 	return expr;
 }
@@ -371,7 +384,7 @@ expression *read_number(runtime *rt)
 {
 	token *t = runtime_current_token(rt);
 	expression *expr = expr_create(expr_primitive_t);
-	expr->operation.primitive = hval_number_create(t->value.number, rt->mem);
+	expr->operation.primitive = hval_number_create(t->value.number, rt);
 	hval_list_insert_head(rt->primitive_pool, expr->operation.primitive);
 	return expr;
 }
@@ -469,7 +482,7 @@ static hval *eval_expr_list(runtime *rt, linked_list *expr_list, hval *context)
 static hval *eval_expr_list_literal(runtime *rt, expression *expr_list, hval *context)
 {
 	hlog("eval_expr_list_literal\n");
-	hval *list = hval_list_create(rt->mem);
+	hval *list = hval_list_create(rt);
 	mem_add_gc_root(rt->mem, list);
 	ll_node *current = expr_list->operation.list_literal->head;
 	expression *expr = NULL;
@@ -491,7 +504,7 @@ static hval *eval_expr_list_literal(runtime *rt, expression *expr_list, hval *co
 
 static hval *eval_expr_hash_literal(runtime *rt, hash *def, hval *context)
 {
-	hval *result = hval_hash_create(rt->mem);
+	hval *result = hval_hash_create(rt);
 	mem_add_gc_root(rt->mem, result);
 	hash_iterator *iter = hash_iterator_create(def);
 	while (iter->current_key != NULL)
@@ -512,11 +525,11 @@ static hval *eval_prop_ref(runtime *rt, prop_ref *ref, hval *context)
 	hval *site = get_prop_ref_site(rt, ref, context);
 	if (site->type != hash_t)
 	{
-		hlog("eval_prop_ref expected a hash");
+		hlog("eval_prop_ref expected a hash, but %p is a %s", site, hval_type_string(site->type));
 		exit(1);
 	}
 
-	hval *val = hval_hash_get(site, ref->name);
+	hval *val = hval_hash_get(site, ref->name, rt->mem);
 	if (val == NULL)
 	{
 		char *str = hstr_to_str(ref->name);
@@ -602,13 +615,13 @@ static hval *eval_expr_invocation(runtime *rt, invocation *inv, hval *context)
 	
 static hval *eval_expr_folly_invocation(runtime *rt, hval *fn, hval *args, hval *context)
 {
-	hval *expr = hval_hash_get(fn, FN_EXPR);
-	hval *default_args = hval_hash_get(fn, FN_ARGS);
+	hval *expr = hval_hash_get(fn, FN_EXPR, rt->mem);
+	hval *default_args = hval_hash_get(fn, FN_ARGS, rt->mem);
 	if (default_args->type != args->type) {
 		hlog("Error: argument type mismatch\n");
 	}
 
-	hval *fn_context = hval_hash_create_child(expr->value.deferred_expression.ctx, rt->mem);
+	hval *fn_context = hval_hash_create_child(expr->value.deferred_expression.ctx, rt);
 	mem_add_gc_root(rt->mem, fn_context);
 	if (args->type == hash_t) {
 		hval_hash_put_all(fn_context, default_args, rt->mem);
@@ -629,7 +642,7 @@ static hval *eval_expr_folly_invocation(runtime *rt, hval *fn, hval *args, hval 
 
 static hval *eval_expr_deferred(runtime *rt, expression *deferred, hval *context)
 {
-	hval *val = hval_create(deferred_expression_t, rt->mem);
+	hval *val = hval_create(deferred_expression_t, rt);
 	val->value.deferred_expression.expr = deferred;
 	expr_retain(deferred);
 	val->value.deferred_expression.ctx = context;
@@ -671,13 +684,13 @@ static void *expect_token(token *t, type token_type)
 
 static hval *native_print(runtime *rt, hval *self, hval *args)
 {
-	char *str = hval_to_string(self);
+	puts("native_print!");
+	/*char *str = hval_to_string(self);*/
 
-	puts(str);
-	free(str);
+	/*puts(str);*/
+	/*free(str);*/
 
-	str = hval_to_string(args);
-	hlog("native_print: %s\n", str);
+	char *str = hval_to_string(args);
 	puts(str);
 	free(str);
 	return NULL;
@@ -692,15 +705,34 @@ static hval *native_add(runtime *rt, hval *this, hval *args)
 		current = current->next;
 	}
 
-	return hval_number_create(sum, rt->mem);
+	return hval_number_create(sum, rt);
 }
 
 static hval *native_fn(runtime *rt, hval *this, hval *args)
 {
-	hval *fn = hval_hash_create(rt->mem);
+	hval *fn = hval_hash_create(rt);
 
 	hval_hash_put(fn, FN_ARGS, (hval *) args->value.list->head->data, rt->mem);
 	hval_hash_put(fn, FN_EXPR, (hval *) args->value.list->tail->data, rt->mem);
 	return fn;
 }
 
+static hval *native_clone(runtime *rt, hval *this, hval *args)
+{
+	hlog("native_clone: %p\n", this);
+	return hval_clone(this, rt);
+}
+
+static hval *native_extend(runtime *rt, hval *this, hval *args)
+{
+	hval *sub = hval_hash_create_child(this, rt);
+	hash_iterator *iter = hash_iterator_create(args->members);
+	while (iter->current_key) {
+		hval_hash_put(sub, iter->current_key, iter->current_value, rt->mem);
+		hash_iterator_next(iter);
+	}
+
+	hash_iterator_destroy(iter);
+	return sub;
+
+}

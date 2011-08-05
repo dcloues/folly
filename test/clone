@@ -1,0 +1,9 @@
+foo: {a: 5 b: 6}
+bar: foo.clone()
+io.print(foo)
+io.print(bar)
+
+io.print(io.clone)
+io2: io.clone()
+io.print(io2.clone)
+io2.print(foo)
