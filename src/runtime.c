@@ -159,7 +159,7 @@ static void register_builtin(runtime *rt, hval *site, char *name, hval *value, b
 	{
 		if (name[i] == '.') {
 			str = hstr_create_len(name + start, i - start);
-			new_site = hval_hash_get(site, str, rt->mem);
+			new_site = hval_hash_get(site, str, rt);
 			if (new_site == NULL) {
 				new_site = hval_hash_create(rt);
 				hval_hash_put(site, str, new_site, rt->mem);
@@ -530,7 +530,7 @@ static hval *eval_prop_ref(runtime *rt, prop_ref *ref, hval *context)
 		exit(1);
 	}
 
-	hval *val = hval_hash_get(site, ref->name, rt->mem);
+	hval *val = hval_hash_get(site, ref->name, rt);
 	if (val == NULL)
 	{
 		char *str = hstr_to_str(ref->name);
@@ -569,14 +569,12 @@ static hval *eval_prop_set(runtime *rt, prop_set *set, hval *context)
 
 static hval *get_prop_ref_site(runtime *rt, prop_ref *ref, hval *context)
 {
-	hlog("get_prop_ref_site: %p\n", ref->site);
 	if (ref->site != NULL)
 	{
 		return runtime_evaluate_expression(rt, ref->site, context);
 	}
 	else
 	{
-		hlog("falling back to context\n");
 		return context;
 	}
 }
@@ -618,8 +616,8 @@ static hval *eval_expr_invocation(runtime *rt, invocation *inv, hval *context)
 	
 static hval *eval_expr_folly_invocation(runtime *rt, hval *fn, hval *args, hval *context)
 {
-	hval *expr = hval_hash_get(fn, FN_EXPR, rt->mem);
-	hval *default_args = hval_hash_get(fn, FN_ARGS, rt->mem);
+	hval *expr = hval_hash_get(fn, FN_EXPR, rt);
+	hval *default_args = hval_hash_get(fn, FN_ARGS, rt);
 	if (default_args->type != args->type) {
 		hlog("Error: argument type mismatch\n");
 	}
@@ -630,6 +628,7 @@ static hval *eval_expr_folly_invocation(runtime *rt, hval *fn, hval *args, hval 
 	if (args->type == hash_t) {
 		hval_hash_put_all(fn_context, default_args, rt->mem);
 		hval_hash_put_all(fn_context, args, rt->mem);
+		hval *self = hval_get_self(fn);
 		hval_hash_put(fn_context, FN_SELF, hval_get_self(fn), rt->mem);
 	}
 

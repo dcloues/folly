@@ -14,7 +14,7 @@ static char *hval_hash_to_string(hash *h);
 static char *hval_list_to_string(linked_list *h);
 void print_hash_member(hash *h, hstr *key, hval *value, buffer *b);
 static void prop_ref_destroy(prop_ref *ref, mem *m);
-static void hval_clone_hash(hval *src, hval *dest, mem *mem);
+static void hval_clone_hash(hval *src, hval *dest, runtime *rt);
 
 void type_init_globals()
 {
@@ -51,7 +51,11 @@ hval *hval_clone(hval *val, runtime *rt) {
 	hval *clone = hval_create(val->type, rt);
 	switch (val->type) {
 	case hash_t:
-		hval_clone_hash(val, clone, rt->mem);
+		hval_clone_hash(val, clone, rt);
+		break;
+	case native_function_t:
+		hval_clone_hash(val, clone, rt);
+		clone->value.native_fn = val->value.native_fn;
 		break;
 	default:
 		hlog("hval_clone() does not support type %s", hval_type_string(val->type));
@@ -62,18 +66,17 @@ hval *hval_clone(hval *val, runtime *rt) {
 	return clone;
 }
 
-void hval_clone_hash(hval *src, hval *dest, mem *mem) {
+void hval_clone_hash(hval *src, hval *dest, runtime *rt) {
 	hash_iterator *iter = hash_iterator_create(src->members);
 	while (iter->current_key) {
-		char *str = hstr_to_str(iter->current_key);
-		hlog("clone key: %s\n", str);
-		free(str);
 
 		hval *value = iter->current_value;
-		if (value && hval_is_callable(value)) {
-			hval_bind_function(value, dest, mem);
+
+		if (value && hval_is_callable(value) && (hval_get_self(value) == src || hval_get_self(value) == NULL)) {
+			value = hval_clone(value, rt);
+			hval_bind_function(value, dest, rt->mem);
 		}
-		hval_hash_put(dest, iter->current_key, value, mem);
+		hval_hash_put(dest, iter->current_key, value, rt->mem);
 
 		hash_iterator_next(iter);
 	}
@@ -109,7 +112,7 @@ hval *hval_hash_create_child(hval *parent, runtime *rt)
 	return hv;
 }
 
-hval *hval_hash_get(hval *hv, hstr *key, mem *mem)
+hval *hval_hash_get(hval *hv, hstr *key, runtime *rt)
 {
 	hlog("hval_hash_get: %s (%p)\n", key->str, hv);
 	if (hv == NULL)
@@ -126,9 +129,12 @@ hval *hval_hash_get(hval *hv, hstr *key, mem *mem)
 		hlog("%s not found in %s\n", key->str, dump_str);
 		free(dump_str);
 		hval *parent = hash_get(h, PARENT);
-		val = hval_hash_get(hash_get(h, PARENT), key, mem);
-		if (mem && val && hval_is_callable(val) && hval_get_self(val) == parent) {
-			hval_bind_function(val, hv, mem);
+		val = hval_hash_get(parent, key, rt);
+
+		if (rt && val && hval_is_callable(val) && hval_get_self(val) == parent) {
+			val = hval_clone(val, rt);
+			hval_bind_function(val, hv, rt->mem);
+			hval_hash_put(hv, key, val, rt->mem);
 		}
 
 	}

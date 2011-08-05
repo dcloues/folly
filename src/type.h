@@ -24,7 +24,7 @@ hval *hval_number_create(int num, runtime *rt);
 hval *hval_list_create(runtime *rt);
 hval *hval_hash_create(runtime *rt);
 hval *hval_hash_create_child(hval *parent, runtime *rt);
-hval *hval_hash_get(hval *hv, hstr *str, mem *m);
+hval *hval_hash_get(hval *hv, hstr *str, runtime *rt);
 hval *hval_hash_put(hval *hv, hstr *str, hval *value, mem *m);
 hval *hval_hash_put_all(hval *dest, hval *src, mem *m);
 hval *hval_native_function_create(native_function fn, runtime *rt);
