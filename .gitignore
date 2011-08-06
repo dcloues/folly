@@ -24,3 +24,5 @@ missing
 .deps/**
 stamp-h1
 *.log
+*.out.*
+*.tmp.*
