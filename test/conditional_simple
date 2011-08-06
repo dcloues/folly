@@ -17,4 +17,5 @@ val: cond(
     (`(test{val: 0}) `(fun1{}))
     (`(test{val: 1}) `(fun2{}))
 )
+
 io.print(val)

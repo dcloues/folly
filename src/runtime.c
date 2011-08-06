@@ -220,7 +220,7 @@ hval *runtime_eval(runtime *runtime, char *file)
 	hval *ret = runtime_evaluate_expression(runtime, expr, context);
 	hlog("runtime_eval complete - got return value %p\n", ret);
 
-	expr_destroy(expr, runtime->mem);
+	expr_destroy(expr, true, runtime->mem);
 	mem_remove_gc_root(runtime->mem, context);
 	expr = NULL;
 
@@ -838,7 +838,9 @@ static hval *undefer(runtime *rt, hval *maybe_deferred) {
 	mem_add_gc_root(rt->mem, maybe_deferred);
 	if (maybe_deferred->type == deferred_expression_t) {
 		deferred_expression *def = &(maybe_deferred->value.deferred_expression);
-		return eval_expr_list(rt, def->expr->operation.list_literal, def->ctx);
+		hval *result = eval_expr_list(rt, def->expr->operation.list_literal, def->ctx);
+		mem_remove_gc_root(rt->mem, maybe_deferred);
+		return result;
 	}
 
 	mem_remove_gc_root(rt->mem, maybe_deferred);

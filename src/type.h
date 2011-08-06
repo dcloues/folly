@@ -37,7 +37,7 @@ const char *hval_type_string(type t);
 int hash_hstr(hstr *);
 expression *expr_create(expression_type);
 void expr_retain(expression *);
-void expr_destroy(expression *, mem *);
+void expr_destroy(expression *, bool recursive, mem *);
 void type_init_globals();
 void type_destroy_globals();
 hval *hval_bind_function(hval *, hval *, mem *);

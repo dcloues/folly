@@ -1,5 +1,6 @@
 #include <stdlib.h>
 #include <string.h>
+#include <strings.h>
 #include <stdio.h>
 #include "buffer.h"
 #include "fmt.h"
@@ -13,7 +14,7 @@
 static char *hval_hash_to_string(hash *h);
 static char *hval_list_to_string(linked_list *h);
 void print_hash_member(hash *h, hstr *key, hval *value, buffer *b);
-static void prop_ref_destroy(prop_ref *ref, mem *m);
+static void prop_ref_destroy(prop_ref *ref, bool destroy_hvals, mem *m);
 static void hval_clone_hash(hval *src, hval *dest, runtime *rt);
 
 void type_init_globals()
@@ -366,7 +367,7 @@ void hval_destroy(hval *hv, mem *m, bool recursive)
 			if (recursive) {
 				hval_release(hv->value.deferred_expression.ctx, m);
 			}
-			expr_destroy(hv->value.deferred_expression.expr, m);
+			expr_destroy(hv->value.deferred_expression.expr, recursive, m);
 			break;
 	}
 
@@ -408,7 +409,7 @@ void expr_retain(expression *expr)
 	expr->refs++;
 }
 
-void expr_destroy(expression *expr, mem *m)
+void expr_destroy(expression *expr, bool destroy_hvals, mem *m)
 {
 	expr->refs--;
 	if (expr->refs > 0)
@@ -417,18 +418,18 @@ void expr_destroy(expression *expr, mem *m)
 	}
 
 	void expr_destructor(expression *to_destroy) {
-		expr_destroy(to_destroy, m);
+		expr_destroy(to_destroy, destroy_hvals, m);
 	}
 
 	hlog("expr_destroy %p %d\n", expr, expr->type);
 	switch (expr->type)
 	{
 		case expr_prop_ref_t:
-			prop_ref_destroy(expr->operation.prop_ref, m);
+			prop_ref_destroy(expr->operation.prop_ref, destroy_hvals, m);
 			break;
 		case expr_prop_set_t:
-			prop_ref_destroy(expr->operation.prop_set->ref, m);
-			expr_destroy(expr->operation.prop_set->value, m);
+			prop_ref_destroy(expr->operation.prop_set->ref, destroy_hvals, m);
+			expr_destroy(expr->operation.prop_set->value, destroy_hvals, m);
 			free(expr->operation.prop_set);
 			break;
 		case expr_list_literal_t:
@@ -438,22 +439,28 @@ void expr_destroy(expression *expr, mem *m)
 			ll_destroy(expr->operation.expr_list, (destructor) expr_destructor);
 			break;
 		case expr_primitive_t:
-			hval_release(expr->operation.primitive, m);
+			if (destroy_hvals) {
+				hval_release(expr->operation.primitive, m);
+			}
 			break;
 		case expr_hash_literal_t:
-			hash_destroy(expr->operation.hash_literal, (destructor) hstr_release, (destructor) expr_destructor);
+			if (destroy_hvals) {
+				hash_destroy(expr->operation.hash_literal, (destructor) hstr_release, (destructor) expr_destructor);
+			} else {
+				hash_destroy(expr->operation.hash_literal, (destructor) hstr_release, NULL);
+			}
 			break;
 		case expr_invocation_t:
 			if (expr->operation.invocation->list_args != NULL) {
-				expr_destroy(expr->operation.invocation->list_args, m);
+				expr_destroy(expr->operation.invocation->list_args, destroy_hvals, m);
 			} else if (expr->operation.invocation->hash_args != NULL) {
-				expr_destroy(expr->operation.invocation->hash_args, m);
+				expr_destroy(expr->operation.invocation->hash_args, destroy_hvals, m);
 			}
-			expr_destroy(expr->operation.invocation->function, m);
+			expr_destroy(expr->operation.invocation->function, destroy_hvals, m);
 			free(expr->operation.invocation);
 			break;
 		case expr_deferred_t:
-			expr_destroy(expr->operation.deferred_expression, m);
+			expr_destroy(expr->operation.deferred_expression, destroy_hvals, m);
 			break;
 		default:
 			hlog("ERROR: unexpected type passed to expr_destroy\n");
@@ -463,11 +470,11 @@ void expr_destroy(expression *expr, mem *m)
 	free(expr);
 }
 
-static void prop_ref_destroy(prop_ref *ref, mem *m)
+static void prop_ref_destroy(prop_ref *ref, bool destroy_hvals, mem *m)
 {
 	if (ref->site)
 	{
-		expr_destroy(ref->site, m);
+		expr_destroy(ref->site, destroy_hvals, m);
 	}
 
 	hstr_release(ref->name);
