@@ -1,0 +1,29 @@
+counter: {
+    value: 0
+    tick: fn({by: 1} `(
+        self.value: +(self.value by)
+    ))
+}
+counter_ext: counter.extend{
+    reset: fn({to: 0} `(
+        self.value: to
+    ))
+}
+
+inst: counter_ext.clone()
+inst.tick{by: 1}
+io.print(inst.value)
+inst.tick{by: 2}
+io.print(inst.value)
+inst.reset{}
+io.print(inst.value)
+
+inst2: counter_ext.clone()
+inst2.tick{by: 1}
+io.print("inst:" inst.value "inst2:" inst2.value)
+inst.tick{by: 1}
+io.print("inst:" inst.value "inst2:" inst2.value)
+inst3: inst2.clone()
+io.print("inst:" inst.value "inst2:" inst2.value "inst3:" inst3.value)
+inst2.reset{to: 0}
+io.print("inst:" inst.value "inst2:" inst2.value "inst3:" inst3.value)

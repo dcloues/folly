@@ -73,7 +73,6 @@ hval *hval_clone(hval *val, runtime *rt) {
 void hval_clone_hash(hval *src, hval *dest, runtime *rt) {
 	hash_iterator *iter = hash_iterator_create(src->members);
 	while (iter->current_key) {
-
 		hval *value = iter->current_value;
 
 		if (value && hval_is_callable(value) && (hval_get_self(value) == src || hval_get_self(value) == NULL)) {
@@ -137,7 +136,8 @@ hval *hval_hash_get(hval *hv, hstr *key, runtime *rt)
 		hval *parent = hash_get(h, PARENT);
 		val = hval_hash_get(parent, key, rt);
 
-		if (rt && val && hval_is_callable(val) && hval_get_self(val) == parent) {
+		hval *self = hval_get_self(val);
+		if (rt && val && hval_is_callable(val) && (self == NULL || self == parent)) {
 			val = hval_clone(val, rt);
 			hval_bind_function(val, hv, rt->mem);
 			hval_hash_put(hv, key, val, rt->mem);
@@ -150,6 +150,7 @@ hval *hval_hash_get(hval *hv, hstr *key, runtime *rt)
 
 hval *hval_hash_put(hval *hv, hstr *key, hval *value, mem *m)
 {
+	hlog("hval_hash_put: %p %s -> %p\n", hv, key->str, value);
 	hstr_retain(key);
 	if (value != NULL)
 	{

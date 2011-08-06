@@ -534,6 +534,7 @@ static hval *eval_expr_hash_literal(runtime *rt, hash *def, hval *context)
 
 static hval *eval_prop_ref(runtime *rt, prop_ref *ref, hval *context)
 {
+	hlog("================== eval_prop_ref\n");
 	hval *site = get_prop_ref_site(rt, ref, context);
 	if (site->type != hash_t)
 	{
@@ -542,18 +543,20 @@ static hval *eval_prop_ref(runtime *rt, prop_ref *ref, hval *context)
 	}
 
 	hval *val = hval_hash_get(site, ref->name, rt);
-	if (val == NULL)
-	{
-		char *str = hstr_to_str(ref->name);
-		hlog("warning: attempted to access undefined property %s\n", str);
-		free(str);
+	if (val != NULL) {
+		hval_retain(val);
+	} else {
+		/*char *str = hstr_to_str(ref->name);*/
+		hlog("warning: attempted to access undefined property %s of %p\n", ref->name->str, site);
+		/*free(str);*/
 		exit(1);
 	}
-	hval_retain(val);
+
 	if (site != context)
 	{
 		hval_release(site, rt->mem);
 	}
+	hlog("================== eval_prop_ref done\n");
 	return val;
 }
 
@@ -640,22 +643,21 @@ static hval *eval_expr_folly_invocation(runtime *rt, hval *fn, hval *args, hval 
 	}
 
 	hval *fn_context = hval_hash_create_child(expr->value.deferred_expression.ctx, rt);
-	hlog("created function context %p with parent %p\n", fn_context, expr->value.deferred_expression.ctx);
+	/*hlog("created function context %p with parent %p\n", fn_context, expr->value.deferred_expression.ctx);*/
 	mem_add_gc_root(rt->mem, fn_context);
 	if (args->type == hash_t) {
+		/*hlog("put all: default args\n");*/
 		hval_hash_put_all(fn_context, default_args, rt->mem);
+		/*hlog("put all: args\n");*/
 		hval_hash_put_all(fn_context, args, rt->mem);
+		/*hlog("get self..\n");*/
 		hval *self = hval_get_self(fn);
-		hval_hash_put(fn_context, FN_SELF, hval_get_self(fn), rt->mem);
+		/*hlog("setting self: %p\n", self);*/
+		hval_hash_put(fn_context, FN_SELF, self, rt->mem);
 	}
 
 	hval *result = eval_expr_list(rt, expr->value.deferred_expression.expr->operation.list_literal, fn_context);
 	mem_remove_gc_root(rt->mem, fn_context);
-	/*mem_remove_gc_root(rt->mem, fn_context);*/
-	/*mem_add_gc_root(rt->mem, result);*/
-	/*gc(rt->mem);*/
-	/*mem_remove_gc_root(rt->mem, result);*/
-	//hval_release(fn_context, rt->mem);
 
 	return result;
 }
@@ -764,10 +766,13 @@ static hval *native_clone(runtime *rt, hval *this, hval *args)
 
 static hval *native_extend(runtime *rt, hval *this, hval *args)
 {
+	hlog("native_extend: %p\n", this);
 	hval *sub = hval_hash_create_child(this, rt);
 	hash_iterator *iter = hash_iterator_create(args->members);
 	while (iter->current_key) {
-		hval_hash_put(sub, iter->current_key, iter->current_value, rt->mem);
+		if (iter->current_key != PARENT) {
+			hval_hash_put(sub, iter->current_key, iter->current_value, rt->mem);
+		}
 		hash_iterator_next(iter);
 	}
 
