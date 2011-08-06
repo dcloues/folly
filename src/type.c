@@ -143,22 +143,16 @@ hval *hval_hash_get(hval *hv, hstr *key, runtime *rt)
 
 hval *hval_hash_put(hval *hv, hstr *key, hval *value, mem *m)
 {
-	// TODO Handle overwrite/cleanup
-	/*char *str = hval_to_string(value);*/
-	/*hlog("hval_hash_put: %p %s %p -> %p %s\n", hv, key->str, key, value, str);*/
-	/*free(str);*/
 	hstr_retain(key);
 	if (value != NULL)
 	{
 		hval_retain(value);
 	}
 
-	hval *previous = hash_put(hv->members, key, value);
+	hval *previous = hash_get(hv->members, key);
+	hash_put(hv->members, key, value);
 	if (previous != NULL)
 	{
-		/*str = hval_to_string(previous);*/
-		/*hlog("previous value: %p %s\n", previous, str);*/
-		/*free(str);*/
 		hval_release(previous, m);
 		hstr_release(key);
 	}

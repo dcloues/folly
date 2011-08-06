@@ -32,13 +32,11 @@ void hstr_init(hstr *hs, char *chars, size_t len)
 
 void hstr_retain(hstr *hs)
 {
-	printf("hstr_retain: %p (%d -> %d) '%s'\n", hs, hs->refs, hs->refs + 1, hs->str);
 	hs->refs++;
 }
 
 void hstr_release(hstr *hs)
 {
-	printf("hstr_release: %p (%d -> %d) '%s'\n", hs, hs->refs, hs->refs - 1, hs->str);
 	hs->refs--;
 	if (hs->refs == 0)
 	{
