@@ -22,6 +22,7 @@ void type_init_globals()
 	FN_ARGS = hstr_create("__args__");
 	FN_EXPR = hstr_create("__expr__");
 	PARENT = hstr_create("__parent__");
+	STRING = hstr_create("String");
 }
 
 void type_destroy_globals()
@@ -30,6 +31,7 @@ void type_destroy_globals()
 	hstr_release(FN_ARGS);
 	hstr_release(FN_EXPR);
 	hstr_release(PARENT);
+	hstr_release(STRING);
 }
 
 const char *hval_type_string(type t)
@@ -87,7 +89,8 @@ void hval_clone_hash(hval *src, hval *dest, runtime *rt) {
 hval *hval_string_create(hstr *str, runtime *rt)
 {
 	hstr_retain(str);
-	hval *hv = hval_create(string_t, rt);
+	hval *hv = hval_hash_create_child(hval_hash_get(rt->top_level, STRING, rt), rt);
+	hv->type = string_t;
 	hv->value.str = str;
 	return hv;
 }

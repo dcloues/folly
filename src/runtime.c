@@ -44,12 +44,16 @@ static hval *native_add(runtime *, hval *this, hval *args);
 static hval *native_fn(runtime *, hval *this, hval *args);
 static hval *native_clone(runtime *, hval *this, hval *args);
 static hval *native_extend(runtime *, hval *this, hval *args);
+static hval *native_to_string(runtime *, hval *this, hval *args);
+static hval *native_string_to_string(runtime *rt, hval *this, hval *args);
 
 #define runtime_current_token(rt) ((token *) rt->current->data)
 
 static native_function_spec native_functions[] = {
 	{ "Object.extend", (native_function) native_extend },
 	{ "Object.clone", (native_function) native_clone },
+	{ "Object.to_string", (native_function) native_to_string },
+	{ "String.to_string", (native_function) native_string_to_string },
 	{ "io.print", (native_function) native_print },
 	{ "+", (native_function) native_add },
 	{ "fn", (native_function) native_fn },
@@ -600,24 +604,30 @@ static hval *eval_expr_invocation(runtime *rt, invocation *inv, hval *context)
 		exit(1);
 	}
 
+	return runtime_call_function(rt, fn, args, context);
+}
+
+hval *runtime_call_function(runtime *rt, hval *fn, hval *args, hval *context)
+{
+	mem_add_gc_root(rt->mem, args);
 	hval *result = NULL;
-	if (fn->type == native_function_t)
-	{
+	if (fn->type == native_function_t) {
 		hval *self = hval_get_self(fn);
 		result = fn->value.native_fn(rt, self, args);
-	}
-	else
-	{
+	} else {
 		result = eval_expr_folly_invocation(rt, fn, args, context);
 	}
 
+	mem_remove_gc_root(rt->mem, args);
 	gc_with_temp_root(rt->mem, result);
-
-	hlog("eval_expr_invocation got result: %p\n", result);
-
 	return result;
 }
-	
+
+hval *runtime_call_hnamed_function(runtime *rt, hstr *name, hval *site, hval *args, hval *context) {
+	hval *func = hval_hash_get(site, name, rt);
+	return runtime_call_function(rt, func, args, context);
+}
+
 static hval *eval_expr_folly_invocation(runtime *rt, hval *fn, hval *args, hval *context)
 {
 	hval *expr = hval_hash_get(fn, FN_EXPR, rt);
@@ -691,14 +701,34 @@ static void *expect_token(token *t, type token_type)
 
 static hval *native_print(runtime *rt, hval *self, hval *args)
 {
-	/*char *str = hval_to_string(self);*/
+	hstr *name = hstr_create("to_string");
+	hval *str = NULL;
+	if (args->type == hash_t) {
+		printf("can't print a hash yet");
+	} else {
+		ll_node *node = args->value.list->head;
+		hval *arg = NULL;
+		bool printed_any = false;
+		while (node) {
+			if (printed_any) {
+				printf(" ");
+			}
+			printed_any = true;
 
-	/*puts(str);*/
-	/*free(str);*/
+			arg = (hval *) node->data;
+			str = runtime_call_hnamed_function(rt, name, arg, NULL, rt->top_level);
+			printf(str->value.str->str);
+			hval_release(str, rt->mem);
+			str = NULL;
+			node = node->next;
+		}
+		if (printed_any) {
+			printf("\n");
+		}
+	}
 
-	char *str = hval_to_string(args);
-	puts(str);
-	free(str);
+	hstr_release(name);
+	name = NULL;
 	return NULL;
 }
 
@@ -741,4 +771,19 @@ static hval *native_extend(runtime *rt, hval *this, hval *args)
 	hash_iterator_destroy(iter);
 	return sub;
 
+}
+
+static hval *native_to_string(runtime *rt, hval *this, hval *args) {
+	char *str = hval_to_string(this);
+	hstr *hs = hstr_create(str);
+	free(str);
+	str = NULL;
+
+	hval *obj = hval_string_create(hs, rt);
+	hstr_release(hs);
+	return obj;
+}
+
+static hval *native_string_to_string(runtime *rt, hval *this, hval *args) {
+	return this;
 }

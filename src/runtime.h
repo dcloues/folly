@@ -26,6 +26,8 @@ void runtime_destroy();
 hval *runtime_eval(runtime *runtime, char *file);
 hval *runtime_eval_token(token *token, runtime *runtime, hval *context, hval *last_result);
 hval *runtime_eval_identifier(token *token, runtime *runtime, hval *context);
+hval *runtime_call_function(runtime *runtime, hval *fn, hval *args, hval *context);
+hval *runtime_call_hnamed_function(runtime *runtime, hstr *name, hval *site, hval *args, hval *context);
 void runtime_init_globals();
 void runtime_destroy_globals();
 
