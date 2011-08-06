@@ -444,11 +444,7 @@ void expr_destroy(expression *expr, bool destroy_hvals, mem *m)
 			}
 			break;
 		case expr_hash_literal_t:
-			if (destroy_hvals) {
-				hash_destroy(expr->operation.hash_literal, (destructor) hstr_release, (destructor) expr_destructor);
-			} else {
-				hash_destroy(expr->operation.hash_literal, (destructor) hstr_release, NULL);
-			}
+			hash_destroy(expr->operation.hash_literal, (destructor) hstr_release, (destructor) expr_destructor);
 			break;
 		case expr_invocation_t:
 			if (expr->operation.invocation->list_args != NULL) {
