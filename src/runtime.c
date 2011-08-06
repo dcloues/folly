@@ -41,8 +41,11 @@ static hval *undefer(runtime *rt, hval *maybe_deferred);
 
 static hval *get_prop_ref_site(runtime *, prop_ref *, hval *);
 
+#define NATIVE_FUNCTION(name) hval *name(runtime *rt, hval *this, hval *args)
+
 static hval *native_print(runtime *, hval *this, hval *args);
 static hval *native_add(runtime *, hval *this, hval *args);
+static hval *native_subtract(runtime *, hval *this, hval *args);
 static hval *native_fn(runtime *, hval *this, hval *args);
 static hval *native_clone(runtime *, hval *this, hval *args);
 static hval *native_extend(runtime *, hval *this, hval *args);
@@ -50,6 +53,8 @@ static hval *native_to_string(runtime *, hval *this, hval *args);
 static hval *native_string_to_string(runtime *rt, hval *this, hval *args);
 static hval *native_number_to_string(runtime *rt, hval *this, hval *args);
 static hval *native_cond(runtime *rt, hval *this, hval *args);
+/*static hval *native_equals(runtime *rt, hval *this, hval *args);*/
+NATIVE_FUNCTION(native_equals);
 
 #define runtime_current_token(rt) ((token *) rt->current->data)
 #define runtime_error(...) fprintf(stderr, __VA_ARGS__); exit(1);
@@ -62,6 +67,8 @@ static native_function_spec native_functions[] = {
 	{ "Number.to_string", (native_function) native_number_to_string },
 	{ "io.print", (native_function) native_print },
 	{ "+", (native_function) native_add },
+	{ "-", (native_function) native_subtract },
+	{ "=", (native_function) native_equals },
 	{ "fn", (native_function) native_fn },
 	{ "cond", (native_function) native_cond },
 	{ NULL, NULL }
@@ -751,6 +758,62 @@ static hval *native_add(runtime *rt, hval *this, hval *args)
 	}
 
 	return hval_number_create(sum, rt);
+}
+
+static hval *native_subtract(runtime *rt, hval *this, hval *args)
+{
+	int val = 0;
+	linked_list *arglist = args->value.list;
+	if (arglist->size == 0) {
+		val = 0;
+	} else if (arglist->size == 1) {
+		val = -((hval *) arglist->head->data)->value.number;
+	} else {
+		val = ((hval *) arglist->head->data)->value.number;
+		ll_node *current = arglist->head->next;
+		while (current) {
+			val = val - ((hval *) current->data)->value.number;
+			current = current->next;
+		}
+	}
+
+	return hval_number_create(val, rt);
+}
+
+NATIVE_FUNCTION(native_equals) {
+	if (args->type != list_t || args->value.list->size < 2) {
+		runtime_error("native_equals: arguments must be a list with at least 2 elements\n");
+	}
+
+	// TODO Make this polymorphic, using an = method on objects
+	hval *ref = (hval *) args->value.list->head->data;
+	hval *candidate = NULL;
+	bool equals = true;
+	ll_node *node = args->value.list->head->next;
+	while (node && equals) {
+		candidate = (hval *) node->data;
+		if (ref->type != candidate->type) {
+			/*runtime_error("type mismatch in native_equals\n");*/
+			equals = false;
+			break;
+		}
+
+		switch (ref->type) {
+		case number_t:
+			equals = ref->value.number == candidate->value.number;
+			break;
+		case string_t:
+			equals = strcmp(ref->value.str->str, candidate->value.str->str) == 0;
+			break;
+		default:
+			equals = ref == candidate;
+			break;
+		}
+
+		node = node->next;
+	}
+
+	return hval_number_create(equals ? 1 : 0, rt);
 }
 
 static hval *native_fn(runtime *rt, hval *this, hval *args)
