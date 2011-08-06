@@ -80,6 +80,8 @@ void hval_clone_hash(hval *src, hval *dest, runtime *rt) {
 
 		hash_iterator_next(iter);
 	}
+
+	hash_iterator_destroy(iter);
 }
 
 hval *hval_string_create(hstr *str, runtime *rt)
@@ -104,11 +106,8 @@ hval *hval_hash_create(runtime *rt)
 
 hval *hval_hash_create_child(hval *parent, runtime *rt)
 {
-	hlog("hval_hash_create_child\n");
 	hval *hv = hval_hash_create(rt);
-	hstr *key = hstr_create("__parent__");
-	hval_hash_put(hv, key, parent, rt->mem);
-	hstr_release(key);
+	hval_hash_put(hv, PARENT, parent, rt->mem);
 	return hv;
 }
 
@@ -145,9 +144,9 @@ hval *hval_hash_get(hval *hv, hstr *key, runtime *rt)
 hval *hval_hash_put(hval *hv, hstr *key, hval *value, mem *m)
 {
 	// TODO Handle overwrite/cleanup
-	char *str = hval_to_string(value);
-	hlog("hval_hash_put: %p %s %p -> %p %s\n", hv, key->str, key, value, str);
-	free(str);
+	/*char *str = hval_to_string(value);*/
+	/*hlog("hval_hash_put: %p %s %p -> %p %s\n", hv, key->str, key, value, str);*/
+	/*free(str);*/
 	hstr_retain(key);
 	if (value != NULL)
 	{
@@ -157,9 +156,9 @@ hval *hval_hash_put(hval *hv, hstr *key, hval *value, mem *m)
 	hval *previous = hash_put(hv->members, key, value);
 	if (previous != NULL)
 	{
-		str = hval_to_string(previous);
-		hlog("previous value: %p %s\n", previous, str);
-		free(str);
+		/*str = hval_to_string(previous);*/
+		/*hlog("previous value: %p %s\n", previous, str);*/
+		/*free(str);*/
 		hval_release(previous, m);
 		hstr_release(key);
 	}

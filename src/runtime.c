@@ -110,10 +110,14 @@ void runtime_destroy(runtime *r)
 
 		hlog("releasing top_level: %p\n", r->top_level);
 		mem_remove_gc_root(r->mem, r->top_level);
-		//hval_release(r->top_level, r->mem);
 		r->top_level = NULL;
 
+		mem_remove_gc_root(r->mem, r->object_root);
+		r->object_root = NULL;
+
 		mem_remove_gc_root(r->mem, r->primitive_pool);
+		r->primitive_pool = NULL;
+
 		gc(r->mem);
 		mem_destroy(r->mem);
 		r->mem = NULL;
