@@ -14,6 +14,7 @@ hstr *FN_EXPR;
 hstr *FN_SELF;
 hstr *PARENT;
 hstr *STRING;
+hstr *NUMBER;
 
 hval *hval_create(type t, runtime *rt);
 void hval_retain(hval *hv);

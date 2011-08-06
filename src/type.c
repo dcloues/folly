@@ -23,6 +23,7 @@ void type_init_globals()
 	FN_EXPR = hstr_create("__expr__");
 	PARENT = hstr_create("__parent__");
 	STRING = hstr_create("String");
+	NUMBER = hstr_create("Number");
 }
 
 void type_destroy_globals()
@@ -32,6 +33,7 @@ void type_destroy_globals()
 	hstr_release(FN_EXPR);
 	hstr_release(PARENT);
 	hstr_release(STRING);
+	hstr_release(NUMBER);
 }
 
 const char *hval_type_string(type t)
@@ -97,7 +99,9 @@ hval *hval_string_create(hstr *str, runtime *rt)
 
 hval *hval_number_create(int number, runtime *rt)
 {
-	hval *hv = hval_create(number_t, rt);
+	hval *hv = hval_hash_create_child(hval_hash_get(rt->top_level, NUMBER, rt), rt);
+	hv->type = number_t;
+	/*hval *hv = hval_create(number_t, rt);*/
 	hv->value.number = number;
 	return hv;
 }

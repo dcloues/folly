@@ -3,6 +3,7 @@
 #include <stdio.h>
 #include "runtime.h"
 #include <stdarg.h>
+#include "fmt.h"
 #include "lexer.h"
 #include "linked_list.h"
 #include "log.h"
@@ -46,6 +47,7 @@ static hval *native_clone(runtime *, hval *this, hval *args);
 static hval *native_extend(runtime *, hval *this, hval *args);
 static hval *native_to_string(runtime *, hval *this, hval *args);
 static hval *native_string_to_string(runtime *rt, hval *this, hval *args);
+static hval *native_number_to_string(runtime *rt, hval *this, hval *args);
 
 #define runtime_current_token(rt) ((token *) rt->current->data)
 
@@ -54,6 +56,7 @@ static native_function_spec native_functions[] = {
 	{ "Object.clone", (native_function) native_clone },
 	{ "Object.to_string", (native_function) native_to_string },
 	{ "String.to_string", (native_function) native_string_to_string },
+	{ "Number.to_string", (native_function) native_number_to_string },
 	{ "io.print", (native_function) native_print },
 	{ "+", (native_function) native_add },
 	{ "fn", (native_function) native_fn },
@@ -786,4 +789,14 @@ static hval *native_to_string(runtime *rt, hval *this, hval *args) {
 
 static hval *native_string_to_string(runtime *rt, hval *this, hval *args) {
 	return this;
+}
+
+static hval *native_number_to_string(runtime *rt, hval *this, hval *args) {
+	char *str = fmt("%d", this->value.number);
+	hstr *hs = hstr_create(str);
+	free(str);
+	str = NULL;
+	hval *obj = hval_string_create(hs, rt);
+	hstr_release(hs);
+	return obj;
 }
