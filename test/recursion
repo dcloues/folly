@@ -1,0 +1,8 @@
+sum_to: fn({to: 0 current: 0} `(
+    cond(
+        (`(=(to current)) `(to))
+        (1 `(+(current sum_to{to: to current: +(current 1)})))
+    )
+))
+
+io.print(sum_to{to: 3})

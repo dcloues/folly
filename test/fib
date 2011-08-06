@@ -1,0 +1,9 @@
+fib: fn({num: 1} `(
+    cond(
+        (`(=(1 num)) 0)
+        (`(=(2 num)) 1)
+        (1 `(+(fib{num: -(num 1)} fib{num: -(num 2)})))
+    )
+))
+
+io.print(fib{num: 6})
