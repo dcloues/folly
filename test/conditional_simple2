@@ -1,0 +1,10 @@
+test: fn({val: 0} `(
+    io.print("test" val)
+    val
+))
+
+val: cond(
+    (0 "val0")
+    (1 "val1")
+)
+io.print(val)

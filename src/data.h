@@ -43,6 +43,11 @@ struct expression {
 
 typedef hval *(*native_function)(void *rt, hval *this, hval *args);
 
+typedef struct deferred_expression {
+	hval *ctx;
+	expression *expr;
+} deferred_expression;
+
 struct hval {
 	type type;
 	int refs;
@@ -50,10 +55,11 @@ struct hval {
 		int number;
 		hstr *str;
 		linked_list *list;
-		struct {
-			hval *ctx;
-			expression *expr;
-		} deferred_expression;
+		deferred_expression deferred_expression;
+		//struct {
+			//hval *ctx;
+			//expression *expr;
+		//} deferred_expression;
 		native_function native_fn;
 	} value;
 	hash *members;

@@ -43,6 +43,7 @@ void type_destroy_globals();
 hval *hval_bind_function(hval *, hval *, mem *);
 hval *hval_get_self(hval *);
 bool hval_is_callable(hval *test);
+bool hval_is_true(hval *test);
 
 #endif
 

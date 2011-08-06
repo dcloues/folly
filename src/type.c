@@ -487,3 +487,18 @@ hval *hval_hash_put_all(hval *dest, hval *src, mem *m)
 	hash_iterator_destroy(iter);
 }
 
+bool hval_is_true(hval *test) {
+	if (test == NULL) {
+		return false;
+	}
+
+	switch (test->type) {
+	case number_t:
+		return test->value.number != 0;
+	case string_t:
+		return strcasecmp("true", test->value.str->str) == 0;
+	default:
+		return true;
+	}
+}
+

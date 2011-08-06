@@ -37,6 +37,7 @@ static hval *eval_expr_list_literal(runtime *, expression *, hval *);
 static hval *eval_expr_invocation(runtime *, invocation *, hval *);
 static hval *eval_expr_folly_invocation(runtime *rt, hval *fn, hval *args, hval *context);
 static hval *eval_expr_deferred(runtime *, expression *, hval *);
+static hval *undefer(runtime *rt, hval *maybe_deferred);
 
 static hval *get_prop_ref_site(runtime *, prop_ref *, hval *);
 
@@ -48,8 +49,10 @@ static hval *native_extend(runtime *, hval *this, hval *args);
 static hval *native_to_string(runtime *, hval *this, hval *args);
 static hval *native_string_to_string(runtime *rt, hval *this, hval *args);
 static hval *native_number_to_string(runtime *rt, hval *this, hval *args);
+static hval *native_cond(runtime *rt, hval *this, hval *args);
 
 #define runtime_current_token(rt) ((token *) rt->current->data)
+#define runtime_error(...) fprintf(stderr, __VA_ARGS__); exit(1);
 
 static native_function_spec native_functions[] = {
 	{ "Object.extend", (native_function) native_extend },
@@ -60,6 +63,7 @@ static native_function_spec native_functions[] = {
 	{ "io.print", (native_function) native_print },
 	{ "+", (native_function) native_add },
 	{ "fn", (native_function) native_fn },
+	{ "cond", (native_function) native_cond },
 	{ NULL, NULL }
 };
 
@@ -804,4 +808,39 @@ static hval *native_number_to_string(runtime *rt, hval *this, hval *args) {
 	hval *obj = hval_string_create(hs, rt);
 	hstr_release(hs);
 	return obj;
+}
+
+static hval *native_cond(runtime *rt, hval *this, hval *args)
+{
+	if (args->type != list_t) {
+		runtime_error("native_cond: argument mismatch: expected list");
+	}
+
+	ll_node *test_node = args->value.list->head;
+	while (test_node) {
+		hval *cond_hval = (hval *) test_node->data;
+		linked_list *cond_pair = cond_hval->value.list;
+
+		hval *test = undefer(rt, (hval *) cond_pair->head->data);
+
+		if (hval_is_true(test)) {
+			return cond_pair->head != cond_pair->tail ? undefer(rt, (hval *) cond_pair->tail->data) : test;
+			break;
+		}
+
+		test_node = test_node->next;
+	}
+	
+	return NULL;
+}
+
+static hval *undefer(runtime *rt, hval *maybe_deferred) {
+	mem_add_gc_root(rt->mem, maybe_deferred);
+	if (maybe_deferred->type == deferred_expression_t) {
+		deferred_expression *def = &(maybe_deferred->value.deferred_expression);
+		return eval_expr_list(rt, def->expr->operation.list_literal, def->ctx);
+	}
+
+	mem_remove_gc_root(rt->mem, maybe_deferred);
+	return maybe_deferred;
 }

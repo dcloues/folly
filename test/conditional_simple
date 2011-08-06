@@ -1,0 +1,20 @@
+test: fn({val: 0} `(
+    io.print("test" val)
+    val
+))
+
+fun1: fn({} `(
+    io.print("fun1 called")
+    "fun1"
+))
+
+fun2: fn({} `(
+    io.print("fun2 called")
+    "fun2"
+))
+
+val: cond(
+    (`(test{val: 0}) `(fun1{}))
+    (`(test{val: 1}) `(fun2{}))
+)
+io.print(val)
