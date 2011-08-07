@@ -24,8 +24,8 @@ mem *mem_create() {
 }
 
 void mem_destroy(mem *mem) {
-	ll_destroy(mem->gc_roots, NULL);
-	ll_destroy(mem->heap, NULL);
+	ll_destroy(mem->gc_roots, NULL, NULL);
+	ll_destroy(mem->heap, NULL, NULL);
 	free(mem);
 }
 
@@ -136,6 +136,6 @@ void sweep(mem *mem)
 		node = next;
 	}
 
-	ll_destroy(mem->heap, NULL);
+	ll_destroy(mem->heap, NULL, NULL);
 	mem->heap = new_heap;
 }

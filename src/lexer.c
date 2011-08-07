@@ -62,7 +62,7 @@ token *token_create(token_type type)
 	return t;
 }
 
-void token_destroy(token *t)
+void token_destroy(token *t, void *context)
 {
 	if (t)
 	{

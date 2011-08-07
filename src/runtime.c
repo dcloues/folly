@@ -139,7 +139,7 @@ void runtime_destroy(runtime *r)
 
 		if (r->tokens)
 		{
-			ll_destroy(r->tokens, (destructor) token_destroy);
+			ll_destroy(r->tokens, (destructor) token_destroy, NULL);
 		}
 
 		hlog("releasing top_level: %p\n", r->top_level);

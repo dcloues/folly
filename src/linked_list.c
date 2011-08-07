@@ -13,12 +13,12 @@ linked_list *ll_create(void) {
 	return list;
 }
 
-void ll_destroy(linked_list *list, destructor dest) {
+void ll_destroy(linked_list *list, destructor dest, void *context) {
 	ll_node *node = list->head;
 	ll_node *tmp = NULL;
 	while (node) {
 		if (dest) {
-			dest(node->data);
+			dest(node->data, context);
 		}
 
 		tmp = node;
@@ -85,7 +85,7 @@ ll_node *ll_search_simple(linked_list *list, void *seek) {
 }
 
 int ll_remove_first(linked_list *list, const void *what) {
-	ll_remove(list, what, 1);
+	return ll_remove(list, what, 1);
 }
 
 int ll_remove(linked_list *list, const void *what, const int limit) {

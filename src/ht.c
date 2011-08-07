@@ -5,7 +5,7 @@
 
 unsigned int hash_index_of(hash *hash, void *key);
 void *hash_resolve_chain(hash *hash, hash_entry *entry, void *key);
-void hash_entry_destroy(hash_entry *entry, destructor key_dtor, destructor value_dtor, bool top_level);
+void hash_entry_destroy(hash_entry *entry, destructor key_dtor, void *key_context, destructor value_dtor, void *value_context, bool top_level);
 
 hash *hash_create(hash_function hash_func, key_comparator comp)
 {
@@ -40,20 +40,20 @@ hash *hash_create(hash_function hash_func, key_comparator comp)
 	return h;
 }
 
-void hash_destroy(hash *h, destructor key_dtor, destructor value_dtor)
+void hash_destroy(hash *h, destructor key_dtor, void *key_context, destructor value_dtor, void *value_context)
 {
 	int i = h->buckets;
 	while (--i >= 0)
 	{
 		hash_entry *entry = h->table + i;
-		hash_entry_destroy(entry, key_dtor, value_dtor, true);
+		hash_entry_destroy(entry, key_dtor, key_context, value_dtor, value_context, true);
 	}
 
 	free(h->table);
 	free(h);
 }
 
-void hash_entry_destroy(hash_entry *entry, destructor key_dtor, destructor value_dtor, bool top_level)
+void hash_entry_destroy(hash_entry *entry, destructor key_dtor, void *key_context, destructor value_dtor, void *value_context, bool top_level)
 {
 	if (!entry || !entry->key)
 	{
@@ -66,14 +66,14 @@ void hash_entry_destroy(hash_entry *entry, destructor key_dtor, destructor value
 	entry->value = NULL;
 	hash_entry *next = entry->next;
 
-	hash_entry_destroy(next, key_dtor, value_dtor, false);
+	hash_entry_destroy(next, key_dtor, key_context, value_dtor, value_context, false);
 	hlog("hash_entry_destroy key, value: %p %p\n", key, value);
 	if (key != NULL && key_dtor != NULL) {
-		key_dtor(key);
+		key_dtor(key, key_context);
 	}
 
 	if (value != NULL && value_dtor != NULL) {
-		value_dtor(value);
+		value_dtor(value, value_context);
 	}
 
 	if (!top_level)

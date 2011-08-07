@@ -33,6 +33,6 @@ char* token_to_string(token *token);
 token* get_next_token(FILE *fh);
 token* get_token_number(FILE *fh);
 token *token_create(token_type type);
-void token_destroy(token *t);
+void token_destroy(token *t, void *context);
 
 #endif

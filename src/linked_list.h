@@ -5,7 +5,7 @@ enum comparison { LT = -1, EQ = 0, GT = 1 };
 
 //typedef comparison (*comparator)(void *, void*);
 typedef int (*comparator)(void*, void*);
-typedef void (*destructor)(void *);
+typedef void (*destructor)(void *, void *);
 
 typedef struct _ll_node {
 	struct _ll_node *next;
@@ -19,7 +19,7 @@ typedef struct _linked_list {
 } linked_list;
 
 linked_list *ll_create(void);
-void ll_destroy(linked_list *list, destructor dest);
+void ll_destroy(linked_list *list, destructor dest, void *context);
 ll_node *ll_node_create(void *data);
 void ll_insert_tail(linked_list *list, void *data);
 void ll_insert_head(linked_list *list, void *data);

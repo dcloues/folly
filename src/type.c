@@ -11,6 +11,11 @@
 #include "mm.h"
 #include "type.h"
 
+typedef struct {
+	mem *mem;
+	bool destroy_hvals;
+} expr_destructor_context;
+
 static char *hval_hash_to_string(hash *h);
 static char *hval_list_to_string(linked_list *h);
 void print_hash_member(hash *h, hstr *key, hval *value, buffer *b);
@@ -332,7 +337,6 @@ hval *hval_create(type hval_type, runtime *rt)
 void hval_retain(hval *hv)
 {
 	hv->refs++;
-	/*hlog("hval_retain: %p: %d\n", hv, hv->refs);*/
 }
 
 void hval_release(hval *hv, mem *m)
@@ -356,9 +360,9 @@ void hval_destroy(hval *hv, mem *m, bool recursive)
 			break;
 		case list_t:
 			if (recursive) {
-				ll_destroy(hv->value.list, (destructor) hval_release);
+				ll_destroy(hv->value.list, (destructor) hval_release, NULL);
 			} else {
-				ll_destroy(hv->value.list, NULL);
+				ll_destroy(hv->value.list, NULL, NULL);
 			}
 			break;
 		case hash_t:
@@ -371,19 +375,17 @@ void hval_destroy(hval *hv, mem *m, bool recursive)
 			break;
 	}
 
-	void hval_release_helper(hval *val) {
-		hval_release(val, m);
-	}
-
 	if (recursive) {
-		hash_destroy(hv->members, (destructor) hstr_release, (destructor) hval_release_helper);
+		hash_destroy(hv->members, (destructor) hstr_release, NULL, (destructor) hval_release, m);
 	} else {
-		hash_destroy(hv->members, (destructor) hstr_release, NULL);
+		hash_destroy(hv->members, (destructor) hstr_release, NULL, NULL, NULL);
 	}
 	hv->members = NULL;
 
 	mem_free(m, hv);
 }
+
+
 
 int hash_hstr(hstr *hs)
 {
@@ -409,6 +411,12 @@ void expr_retain(expression *expr)
 	expr->refs++;
 }
 
+void expr_destructor(expression *expr, void *context) {
+	expr_destructor_context *ctx = (expr_destructor_context *) context;
+
+	expr_destroy(expr, ctx->destroy_hvals, ctx->mem);
+}
+
 void expr_destroy(expression *expr, bool destroy_hvals, mem *m)
 {
 	expr->refs--;
@@ -417,9 +425,7 @@ void expr_destroy(expression *expr, bool destroy_hvals, mem *m)
 		return;
 	}
 
-	void expr_destructor(expression *to_destroy) {
-		expr_destroy(to_destroy, destroy_hvals, m);
-	}
+	expr_destructor_context dest_context = { m, destroy_hvals };
 
 	hlog("expr_destroy %p %d\n", expr, expr->type);
 	switch (expr->type)
@@ -433,10 +439,10 @@ void expr_destroy(expression *expr, bool destroy_hvals, mem *m)
 			free(expr->operation.prop_set);
 			break;
 		case expr_list_literal_t:
-			ll_destroy(expr->operation.list_literal, (destructor) expr_destructor);
+			ll_destroy(expr->operation.list_literal, (destructor) expr_destructor, &dest_context);
 			break;
 		case expr_list_t:
-			ll_destroy(expr->operation.expr_list, (destructor) expr_destructor);
+			ll_destroy(expr->operation.expr_list, (destructor) expr_destructor, &dest_context);
 			break;
 		case expr_primitive_t:
 			if (destroy_hvals) {
@@ -444,7 +450,7 @@ void expr_destroy(expression *expr, bool destroy_hvals, mem *m)
 			}
 			break;
 		case expr_hash_literal_t:
-			hash_destroy(expr->operation.hash_literal, (destructor) hstr_release, (destructor) expr_destructor);
+			hash_destroy(expr->operation.hash_literal, (destructor) hstr_release, NULL, (destructor) expr_destructor, &dest_context);
 			break;
 		case expr_invocation_t:
 			if (expr->operation.invocation->list_args != NULL) {
