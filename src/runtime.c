@@ -12,7 +12,7 @@
 #include "ht.h"
 #include "str.h"
 
-void runtime_parse(runtime *runtime, char *file);
+void runtime_parse(runtime *runtime, lexer_input *input);
 expression *runtime_analyze(runtime *);
 token *runtime_peek_token(runtime *runtime);
 token *runtime_get_next_token(runtime *runtime);
@@ -228,9 +228,9 @@ static void register_builtin(runtime *rt, hval *site, char *name, hval *value, b
 	hval_release(site, rt->mem);
 }
 
-hval *runtime_eval(runtime *runtime, char *file)
+hval *runtime_exec(runtime *runtime, lexer_input *input)
 {
-	runtime_parse(runtime, file);
+	runtime_parse(runtime, input);
 	// this will have type=expr_list_t
 	hlog("analyzing...\n");
 
@@ -255,9 +255,8 @@ hval *runtime_eval(runtime *runtime, char *file)
 	return context;
 }
 
-void runtime_parse(runtime *runtime, char *file)
+void runtime_parse(runtime *runtime, lexer_input *input)
 {
-	lexer_input *input = lexer_file_input_create(file);
 	linked_list *tokens = ll_create();
 	token *tok = NULL;
 	while ((tok = get_next_token(input)))
@@ -266,9 +265,6 @@ void runtime_parse(runtime *runtime, char *file)
 	}
 
 	runtime->tokens = tokens;
-
-	lexer_input_destroy(input);
-	input = NULL;
 }
 
 expression *runtime_analyze(runtime *rt)

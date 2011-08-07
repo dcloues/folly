@@ -16,11 +16,21 @@ typedef struct {
 	FILE *fh;
 } lexer_file_input;
 
+typedef struct {
+	lexer_input base;
+	char *buf;
+	size_t buf_size;
+	int index;
+} lexer_readline_input;
+
 #define lexer_getc(li) (li->li_getc(li))
 #define lexer_ungetc(c, li) (li->li_ungetc(c, li))
 #define lexer_input_destroy(li) (li->li_destroy(li))
 
 lexer_input *
 lexer_file_input_create(char *file);
+
+lexer_input *
+lexer_readline_input_create();
 
 #endif
