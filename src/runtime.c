@@ -105,6 +105,8 @@ runtime *runtime_create()
 	runtime *r = malloc(sizeof(runtime));
 	r->current = NULL;
 	r->mem = mem_create();
+	r->peek = NULL;
+	r->current = NULL;
 
 	r->object_root = NULL;
 	r->object_root = hval_hash_create(r);
@@ -225,6 +227,27 @@ static void register_builtin(runtime *rt, hval *site, char *name, hval *value, b
 		hval_release(value, rt->mem);
 	}
 	hval_release(site, rt->mem);
+}
+
+hval *runtime_exec_one(runtime *runtime, lexer_input *input, bool *terminated)
+{
+	runtime->input = input;
+	token *t = runtime_get_next_token(runtime);
+	if (t == NULL) {
+		*terminated = true;
+		return NULL;
+	}
+
+	hval *result = NULL;
+	expression *expr = read_complete_expression(runtime);
+	if (expr != NULL) {
+		result = runtime_evaluate_expression(runtime, expr, runtime->top_level);
+		expr_destroy(expr, false, runtime->mem);
+	} else {
+		*terminated = true;
+	}
+
+	return result;
 }
 
 hval *runtime_exec(runtime *runtime, lexer_input *input)

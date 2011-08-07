@@ -84,7 +84,7 @@ lexer_readline_input_getc(lexer_input *input)
 				line = NULL;
 			}
 
-			line = readline(">");
+			line = readline("> ");
 			if (line && *line) {
 				lri->buf = line;
 				lri->buf_size = strlen(line);
