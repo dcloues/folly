@@ -9,6 +9,10 @@
 size_t token_string_size(token *token);
 void read_matching(FILE *fh, buffer *buf, bool (*matcher)(char, buffer*));
 
+#define lexer_error(...) fputs("lexer error: ", stderr);\
+fprintf(stderr, __VA_ARGS__);\
+exit(1);
+
 token *get_token_numeric(FILE *fh, buffer *buf);
 token *get_token_string(FILE *fh, buffer *buf);
 token *get_token_identifier(FILE *fh, buffer *buf);
@@ -142,6 +146,8 @@ size_t token_string_size(token *token)
 			return strlen(token->value.string->str);
 		case number:
 			return 11;
+		default:
+			lexer_error("unknown token type for token_string_type: %s", token_type_string(token->type));
 	}
 }
 

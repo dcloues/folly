@@ -15,7 +15,7 @@ void runtime_parse(runtime *runtime, char *file);
 expression *runtime_analyze(runtime *);
 token *runtime_peek_token(runtime *runtime);
 token *runtime_get_next_token(runtime *runtime);
-static void *expect_token(token *t, type token_type);
+static void expect_token(token *t, type token_type);
 static void register_top_level(runtime *);
 static void register_builtin(runtime *, hval *, char *, hval *, bool);
 static void register_builtin_r(runtime *, hval *, char *, hval *);
@@ -259,7 +259,7 @@ void runtime_parse(runtime *runtime, char *file)
 	FILE *fh = fopen(file, "r");
 	linked_list *tokens = ll_create();
 	token *tok = NULL;
-	while (tok = get_next_token(fh))
+	while ((tok = get_next_token(fh)))
 	{
 		ll_insert_tail(tokens, tok);
 	}
@@ -314,6 +314,9 @@ expression *read_complete_expression(runtime *rt)
 			break;
 		case quote:
 			expr = read_quoted(rt);
+			break;
+		default:
+			runtime_error("unhandled token type: %s\n", token_type_string(tt));
 			break;
 	}
 
@@ -726,7 +729,7 @@ token *runtime_get_next_token(runtime *runtime)
 	return NULL;
 }
 
-static void *expect_token(token *t, type token_type)
+static void expect_token(token *t, type token_type)
 {
 	if (!t || token_type != t->type)
 	{
@@ -754,13 +757,13 @@ static hval *native_print(runtime *rt, hval *self, hval *args)
 
 			arg = (hval *) node->data;
 			str = runtime_call_hnamed_function(rt, name, arg, NULL, rt->top_level);
-			printf(str->value.str->str);
+			fputs(str->value.str->str, stdout);
 			hval_release(str, rt->mem);
 			str = NULL;
 			node = node->next;
 		}
 		if (printed_any) {
-			printf("\n");
+			fputc('\n', stdout);
 		}
 	}
 
@@ -983,9 +986,7 @@ void runtime_extract_arg_list(runtime *rt, hval *arglist, ...)
 		if (value->type == expected_type) {
 			*dest = value;
 		} else {
-			char *str = fmt("argument error: got %s, expected %s", hval_type_string(expected_type), hval_type_string(value->type));
-			runtime_error(str);
-			free(str);
+			runtime_error("argument error: got %s, expected %s\n", hval_type_string(expected_type), hval_type_string(value->type));
 		}
 		arglist_node = arglist_node->next;
 	}

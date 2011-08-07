@@ -354,6 +354,9 @@ void hval_destroy(hval *hv, mem *m, bool recursive)
 	hlog("hval_destroy: %p %s\n", hv, hval_type_string(hv->type));
 	switch (hv->type)
 	{
+		case native_function_t:
+		case number_t:
+			break;
 		case string_t:
 			hstr_release(hv->value.str);
 			hv->value.str = NULL;
@@ -494,6 +497,7 @@ hval *hval_hash_put_all(hval *dest, hval *src, mem *m)
 	}
 
 	hash_iterator_destroy(iter);
+	return dest;
 }
 
 bool hval_is_true(hval *test) {
