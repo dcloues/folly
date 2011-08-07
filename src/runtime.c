@@ -5,6 +5,7 @@
 #include <stdarg.h>
 #include "fmt.h"
 #include "lexer.h"
+#include "lexer_io.h"
 #include "linked_list.h"
 #include "log.h"
 #include "type.h"
@@ -256,17 +257,18 @@ hval *runtime_eval(runtime *runtime, char *file)
 
 void runtime_parse(runtime *runtime, char *file)
 {
-	FILE *fh = fopen(file, "r");
+	lexer_input *input = lexer_file_input_create(file);
 	linked_list *tokens = ll_create();
 	token *tok = NULL;
-	while ((tok = get_next_token(fh)))
+	while ((tok = get_next_token(input)))
 	{
 		ll_insert_tail(tokens, tok);
 	}
 
 	runtime->tokens = tokens;
 
-	fclose(fh);
+	lexer_input_destroy(input);
+	input = NULL;
 }
 
 expression *runtime_analyze(runtime *rt)

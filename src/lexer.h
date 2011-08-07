@@ -4,6 +4,7 @@
 #include <stdbool.h>
 #include "buffer.h"
 #include "linked_list.h"
+#include "lexer_io.h"
 #include "str.h"
 
 typedef enum { identifier, number, string, assignment, list_start, list_end, hash_start, hash_end, delim, quote, dereference } token_type;
@@ -21,7 +22,7 @@ typedef struct {
 
 typedef struct {
 	bool (*test_input)(char, buffer *);
-	token *(*read_token)(FILE *fh, buffer *);
+	token *(*read_token)(lexer_input *li, buffer *);
 } rule;
 
 #define token_string(t) (t->value.string)
@@ -30,8 +31,8 @@ const char* token_type_string_token(token *token);
 const char* token_type_string(token_type type);
 char* token_to_string(token *token);
 
-token* get_next_token(FILE *fh);
-token* get_token_number(FILE *fh);
+token* get_next_token(lexer_input *li);
+token* get_token_number(lexer_input *li);
 token *token_create(token_type type);
 void token_destroy(token *t, void *context);
 

@@ -3,27 +3,28 @@
 #include <string.h>
 #include <stdio.h>
 #include "lexer.h"
+#include "lexer_io.h"
 #include "log.h"
 #include "buffer.h"
 
 size_t token_string_size(token *token);
-void read_matching(FILE *fh, buffer *buf, bool (*matcher)(char, buffer*));
+void read_matching(lexer_input *li, buffer *buf, bool (*matcher)(char, buffer*));
 
 #define lexer_error(...) fputs("lexer error: ", stderr);\
 fprintf(stderr, __VA_ARGS__);\
 exit(1);
 
-token *get_token_numeric(FILE *fh, buffer *buf);
-token *get_token_string(FILE *fh, buffer *buf);
-token *get_token_identifier(FILE *fh, buffer *buf);
-token *get_token_assignment(FILE *fh, buffer *buf);
-token *get_token_list_start(FILE *fh, buffer *buf);
-token *get_token_list_end(FILE *fh, buffer *buf);
-token *get_token_hash_start(FILE *fh, buffer *buf);
-token *get_token_hash_end(FILE *fh, buffer *buf);
-token *get_token_delim(FILE *fh, buffer *buf);
-token *get_token_quote(FILE *fh, buffer *buf);
-token *get_token_dereference(FILE *fh, buffer *buf);
+token *get_token_numeric(lexer_input *li, buffer *buf);
+token *get_token_string(lexer_input *li, buffer *buf);
+token *get_token_identifier(lexer_input *li, buffer *buf);
+token *get_token_assignment(lexer_input *li, buffer *buf);
+token *get_token_list_start(lexer_input *li, buffer *buf);
+token *get_token_list_end(lexer_input *li, buffer *buf);
+token *get_token_hash_start(lexer_input *li, buffer *buf);
+token *get_token_hash_end(lexer_input *li, buffer *buf);
+token *get_token_delim(lexer_input *li, buffer *buf);
+token *get_token_quote(lexer_input *li, buffer *buf);
+token *get_token_dereference(lexer_input *li, buffer *buf);
 
 bool is_numeric(const char c, buffer *buffer);
 bool is_string_delim(const char c, buffer *buffer);
@@ -151,11 +152,11 @@ size_t token_string_size(token *token)
 	}
 }
 
-token* get_next_token(FILE *fh)
+token* get_next_token(lexer_input *li)
 {
-	while (!feof(fh))
+	while (true)
 	{
-		int ch = fgetc(fh);	
+		int ch = lexer_getc(li);
 		if (ch == -1) {
 			return NULL;
 		}
@@ -185,7 +186,7 @@ token* get_next_token(FILE *fh)
 			// if no read op, the rule produces no output and should be skipped
 			buffer *buf = buffer_create(512);
 			buffer_append_char(buf, c);
-			token = r->read_token(fh, buf);
+			token = r->read_token(li, buf);
 			buffer_destroy(buf);
 
 			return token;
@@ -195,9 +196,9 @@ token* get_next_token(FILE *fh)
 	return NULL;
 }
 
-token *get_token_numeric(FILE *fh, buffer *buf)
+token *get_token_numeric(lexer_input *li, buffer *buf)
 {
-	read_matching(fh, buf, is_numeric);
+	read_matching(li, buf, is_numeric);
 	int value = atoi(buf->data);
 	token *t = malloc(sizeof(token));
 	t->type = number;
@@ -205,9 +206,9 @@ token *get_token_numeric(FILE *fh, buffer *buf)
 	return t;
 }
 
-token *get_token_string(FILE *fh, buffer *buf)
+token *get_token_string(lexer_input *li, buffer *buf)
 {
-	read_matching(fh, buf, is_string_incomplete);
+	read_matching(li, buf, is_string_incomplete);
 	char *str = buffer_substring(buf, 1, buf->len - 2);
 	/*printf("get_token_string read %d chars: '%s'\n", buf->len-2, str);*/
 
@@ -217,9 +218,9 @@ token *get_token_string(FILE *fh, buffer *buf)
 	return token;
 }
 
-token *get_token_identifier(FILE *fh, buffer *buf)
+token *get_token_identifier(lexer_input *li, buffer *buf)
 {
-	read_matching(fh, buf, is_identifier);
+	read_matching(li, buf, is_identifier);
 	token *token = token_create(identifier);
 	char *str = buffer_to_string(buf);
 	token->value.string = hstr_create(str);
@@ -228,50 +229,50 @@ token *get_token_identifier(FILE *fh, buffer *buf)
 	return token;
 }
 
-token *get_token_assignment(FILE *fh, buffer *buf)
+token *get_token_assignment(lexer_input *li, buffer *buf)
 {
 	return token_create(assignment);
 }
 
-token *get_token_list_start(FILE *fh, buffer *buf)
+token *get_token_list_start(lexer_input *li, buffer *buf)
 {
 	return token_create(list_start);
 }
 
-token *get_token_list_end(FILE *fh, buffer *buf)
+token *get_token_list_end(lexer_input *li, buffer *buf)
 {
 	return token_create(list_end);
 }
 
-token *get_token_hash_start(FILE *fh, buffer *buf)
+token *get_token_hash_start(lexer_input *li, buffer *buf)
 {
 	return token_create(hash_start);
 }
 
-token *get_token_hash_end(FILE *fh, buffer *buf)
+token *get_token_hash_end(lexer_input *li, buffer *buf)
 {
 	return token_create(hash_end);
 }
 
-token *get_token_delim(FILE *fh, buffer *buf)
+token *get_token_delim(lexer_input *li, buffer *buf)
 {
 	return token_create(delim);
 }
 
-token *get_token_quote(FILE *fh, buffer *buf)
+token *get_token_quote(lexer_input *li, buffer *buf)
 {
 	return token_create(quote);
 }
 
-token *get_token_dereference(FILE *fh, buffer *buf)
+token *get_token_dereference(lexer_input *li, buffer *buf)
 {
 	return token_create(dereference);
 }
 
-void read_matching(FILE *fh, buffer *buf, bool (*matcher)(char, buffer*))
+void read_matching(lexer_input *li, buffer *buf, bool (*matcher)(char, buffer*))
 {
-	while (!feof(fh)) {
-		int ch = fgetc(fh);
+	while (true) {
+		int ch = lexer_getc(li);
 		char c = (char) ch;
 		if (ch == -1) 
 		{
@@ -280,7 +281,7 @@ void read_matching(FILE *fh, buffer *buf, bool (*matcher)(char, buffer*))
 		if (matcher(ch, buf)) {
 			buffer_append_char(buf, c);
 		} else {
-			ungetc(ch, fh);
+			lexer_ungetc(ch, li);
 			return;
 		}
 	}
