@@ -12,7 +12,6 @@
 #include "ht.h"
 #include "str.h"
 
-void runtime_parse(runtime *runtime, lexer_input *input);
 expression *runtime_analyze(runtime *);
 token *runtime_peek_token(runtime *runtime);
 token *runtime_get_next_token(runtime *runtime);
@@ -66,7 +65,7 @@ static NATIVE_FUNCTION(native_and);
 static NATIVE_FUNCTION(native_not);
 static NATIVE_FUNCTION(native_xor);
 
-#define runtime_current_token(rt) ((token *) rt->current->data)
+#define runtime_current_token(rt) (rt->current)
 #define runtime_error(...) fprintf(stderr, __VA_ARGS__); exit(1);
 
 static native_function_spec native_functions[] = {
@@ -138,10 +137,10 @@ void runtime_destroy(runtime *r)
 			/*hval_release(r->last_result);*/
 		}
 
-		if (r->tokens)
-		{
-			ll_destroy(r->tokens, (destructor) token_destroy, NULL);
-		}
+		/*if (r->tokens)*/
+		/*{*/
+			/*ll_destroy(r->tokens, (destructor) token_destroy, NULL);*/
+		/*}*/
 
 		hlog("releasing top_level: %p\n", r->top_level);
 		mem_remove_gc_root(r->mem, r->top_level);
@@ -230,10 +229,8 @@ static void register_builtin(runtime *rt, hval *site, char *name, hval *value, b
 
 hval *runtime_exec(runtime *runtime, lexer_input *input)
 {
-	runtime_parse(runtime, input);
-	// this will have type=expr_list_t
 	hlog("analyzing...\n");
-
+	runtime->input = input;
 	expression *expr = runtime_analyze(runtime);
 
 	hlog("creating main context\n");
@@ -253,18 +250,6 @@ hval *runtime_exec(runtime *runtime, lexer_input *input)
 	free(str);
 
 	return context;
-}
-
-void runtime_parse(runtime *runtime, lexer_input *input)
-{
-	linked_list *tokens = ll_create();
-	token *tok = NULL;
-	while ((tok = get_next_token(input)))
-	{
-		ll_insert_tail(tokens, tok);
-	}
-
-	runtime->tokens = tokens;
 }
 
 expression *runtime_analyze(runtime *rt)
@@ -291,7 +276,7 @@ expression *runtime_analyze(runtime *rt)
 expression *read_complete_expression(runtime *rt)
 {
 	expression *expr = NULL;
-	token_type tt = ((token *) rt->current->data)->type;
+	token_type tt = rt->current->type;
 
 	switch (tt)
 	{
@@ -335,7 +320,7 @@ expression *read_identifier(runtime *rt)
 {
 	expression *expr = NULL;
 
-	token *t = rt->current->data;
+	token *t = rt->current;
 	prop_ref *ref = malloc(sizeof(prop_ref));
 	if (ref == NULL)
 	{
@@ -706,25 +691,29 @@ static hval *eval_expr_deferred(runtime *rt, expression *deferred, hval *context
 
 token *runtime_peek_token(runtime *runtime)
 {
-	return runtime->current && runtime->current->next
-		? runtime->current->next->data
-		: NULL;
+	if (!runtime->peek) {
+		runtime->peek = get_next_token(runtime->input);
+	}
+
+	return runtime->peek;
 }
 
 token *runtime_get_next_token(runtime *runtime)
 {
-	if (runtime->current)
-	{
-		runtime->current = runtime->current->next;
-		return runtime->current ? runtime->current->data : NULL;
-	}
-	else
-	{
-		runtime->current = runtime->tokens->head;
-		return runtime->current->data;
+	if (runtime->current) {
+		token_destroy(runtime->current, NULL);
 	}
 
-	return NULL;
+	token *t = NULL;
+	if (runtime->peek) {
+		t = runtime->peek;
+		runtime->peek = NULL;
+	} else {
+		t = get_next_token(runtime->input);
+	}
+
+	runtime->current = t;
+	return t;
 }
 
 static void expect_token(token *t, type token_type)

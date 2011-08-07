@@ -7,13 +7,15 @@
 #define RUNTIME_H
 
 typedef struct {
-	linked_list *tokens;
-	ll_node *current;
 	hval *top_level;
 	hval *last_result;
 	mem *mem;
 	hval *primitive_pool;
 	hval *object_root;
+
+	lexer_input *input;
+	token *current;
+	token *peek;
 } runtime;
 
 typedef struct _native_function_spec {
