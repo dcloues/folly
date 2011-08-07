@@ -43,6 +43,8 @@ static hval *get_prop_ref_site(runtime *, prop_ref *, hval *);
 
 #define NATIVE_FUNCTION(name) hval *name(runtime *rt, hval *this, hval *args)
 
+void runtime_extract_arg_list(runtime *rt, hval *args, ...);
+
 static hval *native_print(runtime *, hval *this, hval *args);
 static hval *native_add(runtime *, hval *this, hval *args);
 static hval *native_subtract(runtime *, hval *this, hval *args);
@@ -55,6 +57,9 @@ static hval *native_number_to_string(runtime *rt, hval *this, hval *args);
 static hval *native_cond(runtime *rt, hval *this, hval *args);
 /*static hval *native_equals(runtime *rt, hval *this, hval *args);*/
 NATIVE_FUNCTION(native_equals);
+NATIVE_FUNCTION(native_while);
+static NATIVE_FUNCTION(native_lt);
+static NATIVE_FUNCTION(native_gt);
 
 #define runtime_current_token(rt) ((token *) rt->current->data)
 #define runtime_error(...) fprintf(stderr, __VA_ARGS__); exit(1);
@@ -69,8 +74,11 @@ static native_function_spec native_functions[] = {
 	{ "+", (native_function) native_add },
 	{ "-", (native_function) native_subtract },
 	{ "=", (native_function) native_equals },
+	{ "<", (native_function) native_lt },
+	{ ">", (native_function) native_gt },
 	{ "fn", (native_function) native_fn },
 	{ "cond", (native_function) native_cond },
+	{ "while", (native_function) native_while },
 	{ NULL, NULL }
 };
 
@@ -821,6 +829,25 @@ NATIVE_FUNCTION(native_equals) {
 	return hval_number_create(equals ? 1 : 0, rt);
 }
 
+static NATIVE_FUNCTION(native_lt)
+{
+	hval *arg1 = NULL;
+	hval *arg2 = NULL;
+	runtime_extract_arg_list(rt, args, &arg1, number_t, &arg2, number_t, NULL);
+	
+	bool lt = arg1->value.number < arg2->value.number;
+	return hval_number_create(lt ? 1 : 0, rt);
+}
+
+static NATIVE_FUNCTION(native_gt)
+{
+	hval *arg1 = NULL;
+	hval *arg2 = NULL;
+	runtime_extract_arg_list(rt, args, &arg1, number_t, &arg2, number_t, NULL);
+	bool gt = arg1->value.number > arg2->value.number;
+	return hval_number_create(gt ? 1 : 0, rt);
+}
+
 static hval *native_fn(runtime *rt, hval *this, hval *args)
 {
 	hval *fn = hval_hash_create(rt);
@@ -902,6 +929,21 @@ static hval *native_cond(runtime *rt, hval *this, hval *args)
 	return NULL;
 }
 
+NATIVE_FUNCTION(native_while)
+{
+	hval *test = NULL;
+	hval *body = NULL;
+	runtime_extract_arg_list(rt, args, &test, deferred_expression_t, &body, deferred_expression_t, NULL);
+
+	hval *result = NULL;
+	while (hval_is_true(undefer(rt, test))) {
+		result = undefer(rt, body);
+		/*hval *cond = undefer(test);*/
+	}
+
+	return result;
+}
+
 static hval *undefer(runtime *rt, hval *maybe_deferred) {
 	mem_add_gc_root(rt->mem, maybe_deferred);
 	if (maybe_deferred->type == deferred_expression_t) {
@@ -914,3 +956,32 @@ static hval *undefer(runtime *rt, hval *maybe_deferred) {
 	mem_remove_gc_root(rt->mem, maybe_deferred);
 	return maybe_deferred;
 }
+
+void runtime_extract_arg_list(runtime *rt, hval *arglist, ...)
+{
+	if (arglist->type != list_t) {
+		runtime_error("argument error: expected list");
+	}
+
+	va_list vargs;
+	va_start(vargs, arglist);
+	hval **dest = NULL;
+	hval *value = NULL;
+	type expected_type;
+	ll_node *arglist_node = arglist->value.list->head;
+	while ((dest = va_arg(vargs, hval**)) != NULL) {
+		expected_type = va_arg(vargs, type);
+		value = (hval *) arglist_node->data;
+		if (value->type == expected_type) {
+			*dest = value;
+		} else {
+			char *str = fmt("argument error: got %s, expected %s", hval_type_string(expected_type), hval_type_string(value->type));
+			runtime_error(str);
+			free(str);
+		}
+		arglist_node = arglist_node->next;
+	}
+
+	va_end(vargs);
+}
+
