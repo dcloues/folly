@@ -1,0 +1,28 @@
+func: fn({val: 0} `(
+    io.print("func:" val)
+    val
+))
+
+io.print("or(0 1 0):" or(0 1 0))
+io.print("or(1 2):" or(1 2))
+io.print("or(`(func{val: 1}) `(func{val: 2})):" or(`(func{val: 1}) `(func{val: 2})))
+
+io.print("---- testing and ----")
+io.print("and(1 0):" and(1 0))
+io.print("and(1 1):" and(1 1))
+io.print("and(`(func{val: 0}) `(func{val: 1})):" and(`(func{val: 0}) `(func{val: 1})))
+io.print("and(`(func{val: 2}) `(func{val: 1})):" and(`(func{val: 2}) `(func{val: 1})))
+
+io.print("---- testing not ----")
+io.print("not(0):" not(0))
+io.print("not(1):" not(1))
+io.print("not(\"true\"):" not("true"))
+io.print("not(\"blah\"):" not("blah"))
+
+io.print("---- testing xor ----")
+io.print("xor(0 0):" xor(0 0))
+io.print("xor(0 1):" xor(0 1))
+io.print("xor(1 0):" xor(1 0))
+io.print("xor(1 1):" xor(1 1))
+io.print("xor(0 1 0):" xor(0 1 0))
+io.print("xor(1 0 1):" xor(1 0 1))

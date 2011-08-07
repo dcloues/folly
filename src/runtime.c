@@ -60,6 +60,10 @@ NATIVE_FUNCTION(native_equals);
 NATIVE_FUNCTION(native_while);
 static NATIVE_FUNCTION(native_lt);
 static NATIVE_FUNCTION(native_gt);
+static NATIVE_FUNCTION(native_or);
+static NATIVE_FUNCTION(native_and);
+static NATIVE_FUNCTION(native_not);
+static NATIVE_FUNCTION(native_xor);
 
 #define runtime_current_token(rt) ((token *) rt->current->data)
 #define runtime_error(...) fprintf(stderr, __VA_ARGS__); exit(1);
@@ -79,6 +83,10 @@ static native_function_spec native_functions[] = {
 	{ "fn", (native_function) native_fn },
 	{ "cond", (native_function) native_cond },
 	{ "while", (native_function) native_while },
+	{ "or", (native_function) native_or },
+	{ "and", (native_function) native_and },
+	{ "not", (native_function) native_not },
+	{ "xor", (native_function) native_xor },
 	{ NULL, NULL }
 };
 
@@ -983,5 +991,81 @@ void runtime_extract_arg_list(runtime *rt, hval *arglist, ...)
 	}
 
 	va_end(vargs);
+}
+
+NATIVE_FUNCTION(native_and)
+{
+	if (args->type != list_t) {
+		runtime_error("argument mismatch: expected list");
+	}
+
+	ll_node *node = args->value.list->head;
+	bool result = true;
+	while (node && result) {
+		hval *current = (hval *) node->data;
+		current = undefer(rt, current);
+		if (!hval_is_true(current)) {
+			result = false;
+		}
+		node = node->next;
+	}
+
+	return hval_number_create(result ? 1 : 0, rt);
+}
+
+NATIVE_FUNCTION(native_or)
+{
+	if (args->type != list_t) {
+		runtime_error("argument mismatch: expected list");
+	}
+
+	ll_node *node = args->value.list->head;
+	bool result = false;
+	while (node && !result) {
+		hval *current = (hval *) node->data;
+		current = undefer(rt, current);
+		if (hval_is_true(current)) {
+			result = true;
+		}
+		node = node->next;
+	}
+
+	return hval_number_create(result ? 1 : 0, rt);
+}
+
+NATIVE_FUNCTION(native_not)
+{
+	if (args->type != list_t) {
+		runtime_error("argument mismatch: expected list");
+	}
+
+	if (args->value.list->size != 1) {
+		runtime_error("argument count mismatch: not() accepts exactly 1");
+	}
+
+	hval *value = (hval *) args->value.list->head->data;
+	return hval_number_create(hval_is_true(value) ? 0 : 1, rt);
+}
+
+NATIVE_FUNCTION(native_xor)
+{
+	if (args->type != list_t) {
+		runtime_error("argument mismatch: expected list");
+	}
+	ll_node *node = args->value.list->head;
+	int truths = 0;
+	while (node) {
+		hval *val = (hval *) node->data;
+		if (hval_is_true(val)) {
+			++truths;
+			if (truths > 1) {
+				break;
+			}
+		}
+
+		node = node->next;
+	}
+
+	return hval_number_create(truths == 1 ? 1 : 0, rt);
 }
 
