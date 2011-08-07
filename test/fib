@@ -6,4 +6,4 @@ fib: fn({num: 1} `(
     )
 ))
 
-io.print(fib{num: 6})
+io.print(fib{num: 20})

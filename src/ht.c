@@ -265,13 +265,17 @@ void hash_iterator_next(hash_iterator *iter)
 	}
 
 	if (!iter->current_key) {
-		int *i = &iter->bucket;
-		for (int *i = &iter->bucket; *i < h->buckets; (*i)++) {
-			if (h->table[*i].key)
+		/*int *i = &iter->bucket;*/
+		/*for (int *i = &iter->bucket; *i < h->buckets; (*i)++) {*/
+		/*int i = iter->bucket;*/
+		/*for (; iter->bucket < h->buckets; iter->bucket++) {*/
+		for (int i = iter->bucket, max = h->buckets; i < max; i++) {
+			if (h->table[i].key)
 			{
-				iter->current_entry = h->table + *i;
+				iter->current_entry = h->table + i;
 				iter->current_key = iter->current_entry->key;
 				iter->current_value = iter->current_entry->value;
+				iter->bucket = i;
 				break;
 			}
 		}

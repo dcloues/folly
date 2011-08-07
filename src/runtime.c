@@ -626,6 +626,8 @@ static hval *eval_expr_invocation(runtime *rt, invocation *inv, hval *context)
 
 hval *runtime_call_function(runtime *rt, hval *fn, hval *args, hval *context)
 {
+	static int gc_count = 0;
+
 	mem_add_gc_root(rt->mem, args);
 	hval *result = NULL;
 	if (fn->type == native_function_t) {
@@ -636,7 +638,10 @@ hval *runtime_call_function(runtime *rt, hval *fn, hval *args, hval *context)
 	}
 
 	mem_remove_gc_root(rt->mem, args);
-	gc_with_temp_root(rt->mem, result);
+	if (++gc_count == 100) {
+		gc_count = 0;
+		gc_with_temp_root(rt->mem, result);
+	}
 	return result;
 }
 

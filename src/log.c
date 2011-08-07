@@ -3,6 +3,7 @@
 #include <stdio.h>
 #include "log.h"
 
+#ifdef LOG_ENABLED
 static FILE *logfile = NULL;
 
 void hlog_init(char *filename)
@@ -41,3 +42,4 @@ void hlog(char *fmt, ...)
 #endif
 }
 
+#endif

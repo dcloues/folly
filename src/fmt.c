@@ -2,6 +2,7 @@
 #include <stdbool.h>
 #include <stdlib.h>
 #include "fmt.h"
+#include "log.h"
 
 char *fmt(char *format, ...)
 {
