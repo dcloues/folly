@@ -55,7 +55,7 @@ static hval *native_to_string(runtime *, hval *this, hval *args);
 static hval *native_string_to_string(runtime *rt, hval *this, hval *args);
 static hval *native_number_to_string(runtime *rt, hval *this, hval *args);
 static hval *native_cond(runtime *rt, hval *this, hval *args);
-/*static hval *native_equals(runtime *rt, hval *this, hval *args);*/
+
 NATIVE_FUNCTION(native_equals);
 NATIVE_FUNCTION(native_while);
 static NATIVE_FUNCTION(native_lt);
@@ -64,6 +64,7 @@ static NATIVE_FUNCTION(native_or);
 static NATIVE_FUNCTION(native_and);
 static NATIVE_FUNCTION(native_not);
 static NATIVE_FUNCTION(native_xor);
+static NATIVE_FUNCTION(native_load);
 
 #define runtime_current_token(rt) (rt->current)
 #define runtime_error(...) fprintf(stderr, __VA_ARGS__); exit(1);
@@ -74,6 +75,7 @@ static native_function_spec native_functions[] = {
 	{ "Object.to_string", (native_function) native_to_string },
 	{ "String.to_string", (native_function) native_string_to_string },
 	{ "Number.to_string", (native_function) native_number_to_string },
+	{ "sys.load", (native_function) native_load },
 	{ "io.print", (native_function) native_print },
 	{ "+", (native_function) native_add },
 	{ "-", (native_function) native_subtract },
@@ -257,22 +259,20 @@ hval *runtime_exec(runtime *runtime, lexer_input *input)
 	expression *expr = runtime_analyze(runtime);
 
 	hlog("creating main context\n");
-	hval *context = hval_hash_create_child(runtime->top_level, runtime);
-	mem_add_gc_root(runtime->mem, context);
+	mem_add_gc_root(runtime->mem, runtime->top_level);
 
 	hlog("beginning evaluation\n");
-	hval *ret = runtime_evaluate_expression(runtime, expr, context);
+	hval *ret = runtime_evaluate_expression(runtime, expr, runtime->top_level);
 	hlog("runtime_eval complete - got return value %p\n", ret);
 
 	expr_destroy(expr, true, runtime->mem);
-	mem_remove_gc_root(runtime->mem, context);
 	expr = NULL;
 
 	char *str = hval_to_string(ret);
 	hlog("eval got result: %s", str);
 	free(str);
 
-	return context;
+	return runtime->top_level;
 }
 
 expression *runtime_analyze(runtime *rt)
@@ -287,7 +287,7 @@ expression *runtime_analyze(runtime *rt)
 		expr = read_complete_expression(rt);
 		if (expr == NULL)
 		{
-			hlog("got a null expression - failing");
+			runtime_error("read_complete_expression returned null\n");
 			exit(1);
 		}
 		ll_insert_tail(expr_list->operation.expr_list, expr);
@@ -570,29 +570,24 @@ static hval *eval_expr_hash_literal(runtime *rt, hash *def, hval *context)
 
 static hval *eval_prop_ref(runtime *rt, prop_ref *ref, hval *context)
 {
-	hlog("================== eval_prop_ref\n");
 	hval *site = get_prop_ref_site(rt, ref, context);
+	// TODO This should go away - everything's a hash now
 	if (site->type != hash_t)
 	{
-		hlog("eval_prop_ref expected a hash, but %p is a %s", site, hval_type_string(site->type));
-		exit(1);
+		runtime_error("eval_prop_ref expected a hash, but %p is a %s", site, hval_type_string(site->type));
 	}
 
 	hval *val = hval_hash_get(site, ref->name, rt);
 	if (val != NULL) {
 		hval_retain(val);
 	} else {
-		/*char *str = hstr_to_str(ref->name);*/
-		hlog("warning: attempted to access undefined property %s of %p\n", ref->name->str, site);
-		/*free(str);*/
-		exit(1);
+		runtime_error("warning: attempted to access undefined property %s of %p\n", ref->name->str, site);
 	}
 
 	if (site != context)
 	{
 		hval_release(site, rt->mem);
 	}
-	hlog("================== eval_prop_ref done\n");
 	return val;
 }
 
@@ -1078,5 +1073,15 @@ NATIVE_FUNCTION(native_xor)
 	}
 
 	return hval_number_create(truths == 1 ? 1 : 0, rt);
+}
+
+NATIVE_FUNCTION(native_load)
+{
+	hval *file = NULL;
+	runtime_extract_arg_list(rt, args, &file, string_t, NULL);
+	lexer_input *input = lexer_file_input_create(file->value.str->str);
+	runtime_exec(rt, input);
+	lexer_input_destroy(input);
+	return rt->top_level;
 }
 
