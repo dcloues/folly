@@ -15,6 +15,9 @@ hstr *FN_SELF;
 hstr *PARENT;
 hstr *STRING;
 hstr *NUMBER;
+hstr *BOOLEAN;
+hstr *TRUE;
+hstr *FALSE;
 
 hval *hval_create(type t, runtime *rt);
 void hval_retain(hval *hv);
@@ -23,6 +26,7 @@ void hval_destroy(hval *hv, mem *m, bool recursive);
 hval *hval_clone(hval *hv, runtime *rt);
 hval *hval_string_create(hstr *str, runtime *rt);
 hval *hval_number_create(int num, runtime *rt);
+hval *hval_boolean_create(bool value, runtime *rt);
 hval *hval_list_create(runtime *rt);
 hval *hval_hash_create(runtime *rt);
 hval *hval_hash_create_child(hval *parent, runtime *rt);

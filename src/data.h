@@ -4,7 +4,7 @@
 #include "ht.h"
 #include "str.h"
 
-typedef enum { string_t, number_t, hash_t, list_t, deferred_expression_t, native_function_t } type;
+typedef enum { string_t, number_t, hash_t, list_t, deferred_expression_t, native_function_t, boolean_t } type;
 typedef enum { expr_prop_ref_t, expr_prop_set_t, expr_invocation_t, expr_list_literal_t, expr_hash_literal_t, expr_primitive_t, expr_list_t, expr_deferred_t } expression_type;
 
 typedef struct hval hval;
@@ -53,13 +53,10 @@ struct hval {
 	int refs;
 	union {
 		int number;
+		bool boolean;
 		hstr *str;
 		linked_list *list;
 		deferred_expression deferred_expression;
-		//struct {
-			//hval *ctx;
-			//expression *expr;
-		//} deferred_expression;
 		native_function native_fn;
 	} value;
 	hash *members;

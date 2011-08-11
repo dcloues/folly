@@ -56,8 +56,11 @@ static hval *native_string_to_string(runtime *rt, hval *this, hval *args);
 static hval *native_number_to_string(runtime *rt, hval *this, hval *args);
 static hval *native_cond(runtime *rt, hval *this, hval *args);
 
+static void init_booleans(runtime *rt);
+
 NATIVE_FUNCTION(native_equals);
 NATIVE_FUNCTION(native_while);
+static NATIVE_FUNCTION(native_is_true);
 static NATIVE_FUNCTION(native_lt);
 static NATIVE_FUNCTION(native_gt);
 static NATIVE_FUNCTION(native_or);
@@ -68,10 +71,12 @@ static NATIVE_FUNCTION(native_load);
 
 #define runtime_current_token(rt) (rt->current)
 #define runtime_error(...) fprintf(stderr, __VA_ARGS__); exit(1);
+typedef void (*top_level_initializer)(runtime *);
 
 static native_function_spec native_functions[] = {
 	{ "Object.extend", (native_function) native_extend },
 	{ "Object.clone", (native_function) native_clone },
+	{ "Object.is_true", (native_function) native_is_true },
 	{ "Object.to_string", (native_function) native_to_string },
 	{ "String.to_string", (native_function) native_string_to_string },
 	{ "Number.to_string", (native_function) native_number_to_string },
@@ -90,6 +95,11 @@ static native_function_spec native_functions[] = {
 	{ "not", (native_function) native_not },
 	{ "xor", (native_function) native_xor },
 	{ NULL, NULL }
+};
+
+static top_level_initializer top_level_initializers[] = {
+	init_booleans,
+	NULL
 };
 
 void runtime_init_globals()
@@ -167,6 +177,12 @@ void runtime_destroy(runtime *r)
 static void register_top_level(runtime *r)
 {
 	int i = 0;
+	top_level_initializer *init = top_level_initializers;
+	while (*init) {
+		(*init)(r);
+		init++;
+	}
+
 	hlog("Registering top levels under %p\n", r->top_level);
 	for (i = 0; i < sizeof(native_functions); i++) {
 		if (native_functions[i].path == NULL) {
@@ -178,6 +194,12 @@ static void register_top_level(runtime *r)
 			native_functions[i].path,
 			hval_native_function_create(native_functions[i].function, r));
 	}
+}
+
+static void init_booleans(runtime *rt) {
+	register_builtin_r(rt, rt->top_level, "Boolean", hval_hash_create(rt));
+	register_builtin_r(rt, rt->top_level, "true", hval_boolean_create(true, rt));
+	register_builtin_r(rt, rt->top_level, "false", hval_boolean_create(false, rt));
 }
 
 static void register_builtin_r(runtime *rt, hval *site, char *name, hval *value)
@@ -571,12 +593,6 @@ static hval *eval_expr_hash_literal(runtime *rt, hash *def, hval *context)
 static hval *eval_prop_ref(runtime *rt, prop_ref *ref, hval *context)
 {
 	hval *site = get_prop_ref_site(rt, ref, context);
-	// TODO This should go away - everything's a hash now
-	if (site->type != hash_t)
-	{
-		runtime_error("eval_prop_ref expected a hash, but %p is a %s", site, hval_type_string(site->type));
-	}
-
 	hval *val = hval_hash_get(site, ref->name, rt);
 	if (val != NULL) {
 		hval_retain(val);
@@ -843,6 +859,11 @@ NATIVE_FUNCTION(native_equals) {
 	}
 
 	return hval_number_create(equals ? 1 : 0, rt);
+}
+
+static NATIVE_FUNCTION(native_is_true)
+{
+	return hval_hash_get(rt->top_level, hval_is_true(this) ? TRUE : FALSE, rt);
 }
 
 static NATIVE_FUNCTION(native_lt)

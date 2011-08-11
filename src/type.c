@@ -30,6 +30,9 @@ void type_init_globals()
 	PARENT = hstr_create("__parent__");
 	STRING = hstr_create("String");
 	NUMBER = hstr_create("Number");
+	BOOLEAN = hstr_create("Boolean");
+	TRUE = hstr_create("true");
+	FALSE = hstr_create("false");
 }
 
 void type_destroy_globals()
@@ -40,6 +43,9 @@ void type_destroy_globals()
 	hstr_release(PARENT);
 	hstr_release(STRING);
 	hstr_release(NUMBER);
+	hstr_release(BOOLEAN);
+	hstr_release(TRUE);
+	hstr_release(FALSE);
 }
 
 const char *hval_type_string(type t)
@@ -108,6 +114,14 @@ hval *hval_number_create(int number, runtime *rt)
 	hv->type = number_t;
 	/*hval *hv = hval_create(number_t, rt);*/
 	hv->value.number = number;
+	return hv;
+}
+
+hval *hval_boolean_create(bool value, runtime *rt)
+{
+	hval *hv = hval_hash_create_child(hval_hash_get(rt->top_level, BOOLEAN, rt), rt);
+	hv->value.boolean = value;
+	hv->type = boolean_t;
 	return hv;
 }
 
@@ -257,6 +271,8 @@ char *hval_to_string(hval *hval)
 			return fmt("native function");
 		case deferred_expression_t:
 			return fmt("deferred expression");
+		case boolean_t:
+			return fmt("boolean (%s)", hval->value.boolean ? "true" : "false");
 
 	}
 
@@ -354,6 +370,7 @@ void hval_destroy(hval *hv, mem *m, bool recursive)
 	hlog("hval_destroy: %p %s\n", hv, hval_type_string(hv->type));
 	switch (hv->type)
 	{
+		case boolean_t:
 		case native_function_t:
 		case number_t:
 			break;
@@ -510,6 +527,8 @@ bool hval_is_true(hval *test) {
 		return test->value.number != 0;
 	case string_t:
 		return strcasecmp("true", test->value.str->str) == 0;
+	case boolean_t:
+		return test->value.boolean;
 	default:
 		return true;
 	}
