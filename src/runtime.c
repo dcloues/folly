@@ -15,6 +15,10 @@
 #include "ht.h"
 #include "str.h"
 
+/*typedef struct _loaded_file {*/
+	/*expression *ast;*/
+/*}*/
+
 expression *runtime_analyze(runtime *);
 token *runtime_peek_token(runtime *runtime);
 token *runtime_get_next_token(runtime *runtime);
@@ -122,6 +126,7 @@ runtime *runtime_create()
 	r->mem = mem_create();
 	r->peek = NULL;
 	r->current = NULL;
+	r->loaded_modules = NULL;
 
 	r->object_root = NULL;
 	r->object_root = hval_hash_create(r);
@@ -147,34 +152,33 @@ runtime *runtime_create()
 
 void runtime_destroy(runtime *r)
 {
-	if (r)
-	{ 
-		if (r->last_result)
-		{
-			/*hval_release(r->last_result);*/
+	if (!r) return;
+
+	if (r->loaded_modules) {
+		ll_node *module_node = r->loaded_modules->head;
+		while (module_node) {
+			expr_destroy((expression *) module_node->data, true, r->mem);
+			module_node = module_node->next;
 		}
 
-		/*if (r->tokens)*/
-		/*{*/
-			/*ll_destroy(r->tokens, (destructor) token_destroy, NULL);*/
-		/*}*/
-
-		hlog("releasing top_level: %p\n", r->top_level);
-		mem_remove_gc_root(r->mem, r->top_level);
-		r->top_level = NULL;
-
-		mem_remove_gc_root(r->mem, r->object_root);
-		r->object_root = NULL;
-
-		mem_remove_gc_root(r->mem, r->primitive_pool);
-		r->primitive_pool = NULL;
-
-		gc(r->mem);
-		mem_destroy(r->mem);
-		r->mem = NULL;
-		hlog("done releasing top_level\n");
-		free(r);
+		ll_destroy(r->loaded_modules, NULL, NULL);
 	}
+
+	hlog("releasing top_level: %p\n", r->top_level);
+	mem_remove_gc_root(r->mem, r->top_level);
+	r->top_level = NULL;
+
+	mem_remove_gc_root(r->mem, r->object_root);
+	r->object_root = NULL;
+
+	mem_remove_gc_root(r->mem, r->primitive_pool);
+	r->primitive_pool = NULL;
+
+	gc(r->mem);
+	mem_destroy(r->mem);
+	r->mem = NULL;
+	hlog("done releasing top_level\n");
+	free(r);
 }
 
 static void register_top_level(runtime *r)
@@ -298,6 +302,22 @@ hval *runtime_exec(runtime *runtime, lexer_input *input)
 	free(str);
 
 	return runtime->top_level;
+}
+
+hval *runtime_load_module(runtime *runtime, lexer_input *input)
+{
+	lexer_input *orig_input = runtime->input;
+	runtime->input = input;
+	expression *expr = runtime_analyze(runtime);
+	if (runtime->loaded_modules == NULL) {
+		runtime->loaded_modules = ll_create();
+	}
+
+	ll_insert_head(runtime->loaded_modules, expr);
+
+	hval *ret = runtime_evaluate_expression(runtime, expr, runtime->top_level);
+	runtime->input = orig_input;
+	return ret;
 }
 
 expression *runtime_analyze(runtime *rt)
@@ -1102,7 +1122,18 @@ NATIVE_FUNCTION(native_xor)
 NATIVE_FUNCTION(native_load)
 {
 	hval *file = NULL;
+	hval *context = rt->top_level;
+	/*if (args->type == list_t) {*/
 	runtime_extract_arg_list(rt, args, &file, string_t, NULL);
+	/*} else {*/
+		/*static hstr *key_filename, *key_into;*/
+		/*if (key_filename == NULL) key_filename = hstr_create("file");*/
+		/*if (key_into == NULL) key_into = hstr_create("into");*/
+
+		/*file = hval_hash_get(args, key_filename, rt);*/
+		/*context = hval_hash_get(args, key_into, rt);*/
+	/*}*/
+
 	char *filename = file->value.str->str;
 	struct stat stat_buf;
 	int err = stat(filename, &stat_buf);
@@ -1114,7 +1145,7 @@ NATIVE_FUNCTION(native_load)
 	}
 
 	lexer_input *input = lexer_file_input_create(filename);
-	runtime_exec(rt, input);
+	runtime_load_module(rt, input);
 	lexer_input_destroy(input);
 	return hval_hash_get(rt->top_level, TRUE, rt);
 }

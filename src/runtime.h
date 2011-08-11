@@ -16,6 +16,7 @@ typedef struct {
 	lexer_input *input;
 	token *current;
 	token *peek;
+	linked_list *loaded_modules;
 } runtime;
 
 typedef struct _native_function_spec {
@@ -26,6 +27,7 @@ typedef struct _native_function_spec {
 runtime *runtime_create();
 void runtime_destroy();
 hval *runtime_exec(runtime *runtime, lexer_input *lexer);
+hval *runtime_load_module(runtime *runtime, lexer_input *lexer);
 hval *runtime_exec_one(runtime *runtime, lexer_input *input, bool *terminated);
 //hval *runtime_eval(runtime *runtime, char *file);
 hval *runtime_eval_token(token *token, runtime *runtime, hval *context, hval *last_result);
