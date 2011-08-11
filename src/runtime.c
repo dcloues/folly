@@ -1,8 +1,11 @@
+#include <stdarg.h>
 #include <stdlib.h>
 #include <string.h>
 #include <stdio.h>
+#include <sys/types.h>
+#include <sys/stat.h>
+#include <unistd.h>
 #include "runtime.h"
-#include <stdarg.h>
 #include "fmt.h"
 #include "lexer.h"
 #include "lexer_io.h"
@@ -1100,9 +1103,19 @@ NATIVE_FUNCTION(native_load)
 {
 	hval *file = NULL;
 	runtime_extract_arg_list(rt, args, &file, string_t, NULL);
-	lexer_input *input = lexer_file_input_create(file->value.str->str);
+	char *filename = file->value.str->str;
+	struct stat stat_buf;
+	int err = stat(filename, &stat_buf);
+	if (err == -1) {
+		perror("Unable to open file");
+		return hval_hash_get(rt->top_level, FALSE, rt);
+	} else if (!S_ISREG(stat_buf.st_mode)) {
+		return hval_hash_get(rt->top_level, FALSE, rt);
+	}
+
+	lexer_input *input = lexer_file_input_create(filename);
 	runtime_exec(rt, input);
 	lexer_input_destroy(input);
-	return rt->top_level;
+	return hval_hash_get(rt->top_level, TRUE, rt);
 }
 
