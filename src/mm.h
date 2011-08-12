@@ -4,11 +4,22 @@
 #include "linked_list.h"
 #include "data.h"
 
+typedef struct _chunk {
+	int size;
+	int free_hint;
+	hval contents[];
+} chunk;
+
 typedef struct {
 	linked_list *gc_roots;
-	linked_list *heap;
+	chunk **chunks;
+	int num_chunks;
+	//hval *heap;
+	//int heap_size;
+	//int free_hint;
 	bool gc;
 } mem;
+
 
 mem *mem_create();
 void mem_destroy(mem *);

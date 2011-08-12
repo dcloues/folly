@@ -4,7 +4,7 @@
 #include "ht.h"
 #include "str.h"
 
-typedef enum { string_t, number_t, hash_t, list_t, deferred_expression_t, native_function_t, boolean_t } type;
+typedef enum { free_t, string_t, number_t, hash_t, list_t, deferred_expression_t, native_function_t, boolean_t } type;
 typedef enum { expr_prop_ref_t, expr_prop_set_t, expr_invocation_t, expr_list_literal_t, expr_hash_literal_t, expr_primitive_t, expr_list_t, expr_deferred_t } expression_type;
 
 typedef struct hval hval;

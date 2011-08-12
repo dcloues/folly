@@ -4,10 +4,26 @@
 #include "linked_list.h"
 #include "log.h"
 #include "mm.h"
+#include "smalloc.h"
 #include "type.h"
+
+#define DEFAULT_CHUNK_SIZE 512
 
 void mark(hval *hv);
 void sweep(mem *m);
+chunk *chunk_create(int size);
+
+chunk *chunk_create(int size)
+{
+	chunk *chnk = smalloc(sizeof(chunk) + size * sizeof(hval));
+	chnk->size = size;
+	chnk->free_hint = 0;
+	for (hval *mark_free = chnk->contents; mark_free < chnk->contents + chnk->size; mark_free++) {
+		mark_free->type = free_t;
+	}
+	
+	return chnk;
+}
 
 mem *mem_create() {
 	mem *m = malloc(sizeof(mem));
@@ -17,7 +33,10 @@ mem *mem_create() {
 	}
 
 	m->gc_roots = ll_create();
-	m->heap = ll_create();
+	m->chunks = smalloc(sizeof(chunk *));
+	m->num_chunks = 1;
+	m->chunks[0] = chunk_create(DEFAULT_CHUNK_SIZE);
+
 	m->gc = false;
 	
 	return m;
@@ -25,25 +44,48 @@ mem *mem_create() {
 
 void mem_destroy(mem *mem) {
 	ll_destroy(mem->gc_roots, NULL, NULL);
-	ll_destroy(mem->heap, NULL, NULL);
 	free(mem);
 }
 
-hval *mem_alloc(mem *m) {
-	hval *hv = malloc(sizeof(hval));
-	if (hv == NULL) {
-		perror("Unable to allocate memory for hval");
-		exit(1);
+hval *chunk_get_free(chunk *chnk)
+{
+	if (chnk->contents[chnk->free_hint].type == free_t) {
+		return chnk->contents + chnk->free_hint;
 	}
 
-	ll_insert_tail(m->heap, hv);
+	for (hval *hv = chnk->contents; hv < chnk->contents + chnk->size; hv++) {
+		if (hv->type == free_t) {
+			return hv;
+		}
+	}
+
+	return NULL;
+}
+
+hval *mem_alloc(mem *m) {
+	hval *hv = NULL;
+	for (int i=0; i < m->num_chunks; i++) {
+		chunk *chnk = m->chunks[i];
+		hv = chunk_get_free(chnk);
+		if (hv) {
+			return hv;
+		}
+	}
+
+	m->chunks = realloc(m->chunks, sizeof(chunk *) * (m->num_chunks + 1));
+	m->chunks[m->num_chunks] = chunk_create(DEFAULT_CHUNK_SIZE);
+	hv = chunk_get_free(m->chunks[m->num_chunks]);
+	if (hv == NULL) {
+		printf("unable to grow heap\n");
+		exit(2);
+	}
+	m->num_chunks++;
 	return hv;
 }
 
 void mem_free(mem *m, hval *hv) {
-	if (ll_remove_first(m->heap, hv) == 1) {
-		free(hv);
-	}
+	// TODO consider resetting the free hint?
+	hv->type = free_t;
 }
 
 void mem_add_gc_root(mem *m, hval *root) {
@@ -70,14 +112,14 @@ void gc_with_temp_root(mem *m, hval *root) {
 
 void gc(mem *m) {
 	m->gc = true;
-	ll_node *node = m->heap->head;
-	while (node) {
-		hval *data = node->data;
-		data->reachable = false;
-		node = node->next;
+	for (int i = 0; i < m->num_chunks; i++) {
+		chunk *chunk = m->chunks[i];
+		for (hval *chunk_val = chunk->contents, *max = chunk->contents + chunk->size; chunk_val < max; chunk_val++) {
+			chunk_val->reachable = false;
+		}
 	}
 
-	node = m->gc_roots->head;
+	ll_node *node = m->gc_roots->head;
 	hlog("marking\n");
 	while (node) {
 		/*hlog("gc root: %p\n", node->data);*/
@@ -119,23 +161,13 @@ void mark(hval *hv) {
 void sweep(mem *mem)
 {
 	hlog("sweeping\n");
-	linked_list *new_heap = ll_create();
-	ll_node *node = mem->heap->head;
-	ll_node *next = NULL;
-
-	while (node) {
-		hval *data = node->data;
-		next = node->next;
-		if (data->reachable) {
-			ll_insert_head(new_heap, data);
-		} else {
-			hlog("sweeping: %p\n", data);
-			hval_destroy(data, mem, false);
+	for (int i = 0; i < mem->num_chunks; i++) {
+		chunk *chnk = mem->chunks[i];
+		for (hval *hv = chnk->contents; hv < chnk->contents + chnk->size; hv++) {
+			if (hv->type != free_t && !hv->reachable) {
+				hval_destroy(hv, mem, false);
+				hv->type = free_t;
+			}
 		}
-
-		node = next;
 	}
-
-	ll_destroy(mem->heap, NULL, NULL);
-	mem->heap = new_heap;
 }
