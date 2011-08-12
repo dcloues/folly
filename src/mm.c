@@ -64,7 +64,7 @@ hval *chunk_get_free(chunk *chnk)
 
 hval *mem_alloc(mem *m) {
 	hval *hv = NULL;
-	for (int i=0; i < m->num_chunks; i++) {
+	for (int i=m->num_chunks - 1; i >= 0; i--) {
 		chunk *chnk = m->chunks[i];
 		hv = chunk_get_free(chnk);
 		if (hv) {
