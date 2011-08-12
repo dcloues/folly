@@ -1,4 +1,5 @@
 #include <stdlib.h>
+#include <stdbool.h>
 #include <string.h>
 #include <strings.h>
 #include <stdio.h>
@@ -409,7 +410,11 @@ void hval_destroy(hval *hv, mem *m, bool recursive)
 
 int hash_hstr(hstr *hs)
 {
-	return hash_string(hs->str);
+	if (!hs->hash_calculated) {
+		hs->hash = hash_string(hs->str);
+		hs->hash_calculated = true;
+	}
+	return hs->hash;
 }
 
 expression *expr_create(expression_type type)

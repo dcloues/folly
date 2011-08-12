@@ -6,6 +6,8 @@
 typedef struct {
 	char *str;
 	int refs;
+	bool hash_calculated;
+	int hash;
 } hstr;
 
 hstr *hstr_create(char *);

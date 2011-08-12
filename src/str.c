@@ -24,6 +24,8 @@ void hstr_init(hstr *hs, char *chars, size_t len)
 	hs->refs = 1;
 	hs->str = malloc(len + 1);
 	hs->str[len] = '\0';
+	hs->hash_calculated = false;
+	hs->hash = 0;
 	if (hs->str != NULL)
 	{
 		strncpy(hs->str, chars, len);
