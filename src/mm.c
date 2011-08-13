@@ -1,6 +1,7 @@
 #include <stdbool.h>
 #include <stdlib.h>
 #include <stdio.h>
+#include "config.h"
 #include "linked_list.h"
 #include "log.h"
 #include "mm.h"
@@ -164,9 +165,14 @@ void gc(mem *m) {
 		}
 	}
 
+#if GC_REPORTING
+	fprintf(stderr, "%d gc roots\n", m->gc_roots->size);
+#endif
 	ll_node *node = m->gc_roots->head;
-	hlog("marking\n");
 	while (node) {
+#if GC_REPORTING
+		fprintf(stderr, "gc root: %p\n", node->data);
+#endif
 		/*hlog("gc root: %p\n", node->data);*/
 		mark(node->data);
 		node = node->next;
