@@ -116,8 +116,10 @@ static hval *mem_alloc_helper(mem *m, bool run_gc)
 		return mem_alloc_helper(m, false);
 	}
 
+#if GC_REPORTING
 	printf("growing heap:\n");
 	debug_heap_output(m);
+#endif
 
 	m->chunks = realloc(m->chunks, sizeof(chunk *) * (m->num_chunks + 1));
 	m->chunks[m->num_chunks] = chunk_create(DEFAULT_CHUNK_SIZE);
