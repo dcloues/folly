@@ -2,6 +2,7 @@
 #define TYPE_H
 
 #include <stdbool.h>
+#include "config.h"
 #include "linked_list.h"
 #include "data.h"
 #include "ht.h"
@@ -48,6 +49,10 @@ hval *hval_bind_function(hval *, hval *, mem *);
 hval *hval_get_self(hval *);
 bool hval_is_callable(hval *test);
 bool hval_is_true(hval *test);
+
+#if HVAL_STATS
+void print_hval_stats();
+#endif
 
 #endif
 

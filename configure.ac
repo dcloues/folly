@@ -15,6 +15,14 @@ AC_PROG_CC
 # FIXME: Replace `main' with a function in `-lncurses':
 AC_CHECK_LIB([ncurses], [main])
 
+AC_ARG_ENABLE([hval-stats],
+    [ --enable-hval-stats    enable hval allocation stats ],
+    [ hval_stats=${enableval}], [hval_stats=no])
+
+if test "x${hval_stats}" == xyes; then
+    AC_DEFINE([HVAL_STATS], 1, [hval stats enabled])
+fi
+
 # Checks for header files.
 
 # Checks for typedefs, structures, and compiler characteristics.

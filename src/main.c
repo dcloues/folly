@@ -49,6 +49,10 @@ int main(int argc, char **argv)
 	runtime_destroy_globals();
 	hlog_shutdown();
 
+#if HVAL_STATS
+	print_hval_stats();
+#endif
+
 	return 0;
 }
 

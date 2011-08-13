@@ -23,6 +23,12 @@ void print_hash_member(hash *h, hstr *key, hval *value, buffer *b);
 static void prop_ref_destroy(prop_ref *ref, bool destroy_hvals, mem *m);
 static void hval_clone_hash(hval *src, hval *dest, runtime *rt);
 
+#if HVAL_STATS
+static int hval_create_count = 0;
+static int hval_child_count = 0;
+static int hval_clone_count = 0;
+#endif
+
 void type_init_globals()
 {
 	FN_SELF = hstr_create("self");
@@ -65,6 +71,9 @@ const char *hval_type_string(type t)
 
 hval *hval_clone(hval *val, runtime *rt) {
 	hlog("hval_clone: %p\n", val);
+#if HVAL_STATS
+	hval_clone_count++;
+#endif
 	hval *clone = hval_create(val->type, rt);
 	switch (val->type) {
 	case hash_t:
@@ -133,6 +142,9 @@ hval *hval_hash_create(runtime *rt)
 
 hval *hval_hash_create_child(hval *parent, runtime *rt)
 {
+#if HVAL_STATS
+	hval_child_count++;
+#endif
 	hval *hv = hval_hash_create(rt);
 	hval_hash_put(hv, PARENT, parent, rt->mem);
 	return hv;
@@ -334,6 +346,9 @@ void print_hash_member(hash *h, hstr *key, hval *value, buffer *b)
 
 hval *hval_create(type hval_type, runtime *rt)
 {
+#if HVAL_STATS
+	hval_create_count++;
+#endif
 	hval *hv = mem_alloc(rt->mem);
 	if (hv->members == NULL) {
 		hv->members = hash_create((hash_function) hash_hstr, (key_comparator) hstr_comparator);
@@ -539,3 +554,13 @@ bool hval_is_true(hval *test) {
 	}
 }
 
+#if HVAL_STATS
+void print_hval_stats()
+{
+	const char *fmt = " %10d %s\n";
+	fprintf(stderr, "hval statistics\n");
+	fprintf(stderr, fmt, hval_create_count, "hvals created");
+	fprintf(stderr, fmt, hval_clone_count, "hvals cloned");
+	fprintf(stderr, fmt, hval_child_count, "hval children created");
+}
+#endif
