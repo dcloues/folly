@@ -27,6 +27,7 @@ static void hval_clone_hash(hval *src, hval *dest, runtime *rt);
 static int hval_create_count = 0;
 static int hval_child_count = 0;
 static int hval_clone_count = 0;
+static int hval_reuse_count = 0;
 #endif
 
 void type_init_globals()
@@ -352,6 +353,10 @@ hval *hval_create(type hval_type, runtime *rt)
 	hval *hv = mem_alloc(rt->mem);
 	if (hv->members == NULL) {
 		hv->members = hash_create((hash_function) hash_hstr, (key_comparator) hstr_comparator);
+#ifdef HVAL_STATS
+	} else {
+		hval_reuse_count++;
+#endif
 	}
 	if (rt->object_root) {
 		hval_hash_put(hv, PARENT, rt->object_root, rt->mem);
@@ -560,6 +565,7 @@ void print_hval_stats()
 	const char *fmt = " %10d %s\n";
 	fprintf(stderr, "hval statistics\n");
 	fprintf(stderr, fmt, hval_create_count, "hvals created");
+	fprintf(stderr, fmt, hval_reuse_count, "hvals reused");
 	fprintf(stderr, fmt, hval_clone_count, "hvals cloned");
 	fprintf(stderr, fmt, hval_child_count, "hval children created");
 }
