@@ -12,6 +12,7 @@
 void mark(hval *hv);
 void sweep(mem *m);
 chunk *chunk_create(int size);
+static hval *mem_alloc_helper(mem *m, bool run_gc);
 
 chunk *chunk_create(int size)
 {
@@ -60,6 +61,8 @@ void mem_destroy(mem *mem) {
 				hv->members = NULL;
 			}
 		}
+
+		ll_destroy(chnk->free_list, NULL, NULL);
 		free(chnk);
 	}
 
@@ -93,6 +96,11 @@ hval *chunk_get_free(chunk *chnk)
 }
 
 hval *mem_alloc(mem *m) {
+	return mem_alloc_helper(m, true);
+}
+
+static hval *mem_alloc_helper(mem *m, bool run_gc)
+{
 	hval *hv = NULL;
 	for (int i=m->num_chunks - 1; i >= 0; i--) {
 		chunk *chnk = m->chunks[i];
@@ -102,13 +110,9 @@ hval *mem_alloc(mem *m) {
 		}
 	}
 
-	gc(m);
-	for (int i=m->num_chunks - 1; i >= 0; i--) {
-		chunk *chnk = m->chunks[i];
-		hv = chunk_get_free(chnk);
-		if (hv) {
-			return hv;
-		}
+	if (run_gc) {
+		gc(m);
+		return mem_alloc_helper(m, false);
 	}
 
 	printf("growing heap:\n");
