@@ -40,6 +40,13 @@ hash *hash_create(hash_function hash_func, key_comparator comp)
 	return h;
 }
 
+void hash_empty(hash *h, destructor key_dtor, void *key_context, destructor value_dtor, void *value_context)
+{
+	for (hash_entry *entry = h->table + h->buckets - 1; entry >= h->table; entry--) {
+		hash_entry_destroy(entry, key_dtor, key_context, value_dtor, value_context, true);
+	}
+}
+
 void hash_destroy(hash *h, destructor key_dtor, void *key_context, destructor value_dtor, void *value_context)
 {
 	int i = h->buckets;

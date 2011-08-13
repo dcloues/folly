@@ -36,6 +36,7 @@ typedef void (*key_value_callback)(hash *, void *, void *, void *);
  */
 hash *hash_create(hash_function hash_func, key_comparator comp);
 
+void hash_empty(hash *h, destructor key_dtor, void *key_context, destructor value_dtor, void *value_context);
 void hash_destroy(hash *h, destructor key_dtor, void *key_context, destructor value_dtor, void *value_context);
 
 /* Adds a key to the hash and returns the value that was previously

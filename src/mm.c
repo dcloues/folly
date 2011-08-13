@@ -21,6 +21,7 @@ chunk *chunk_create(int size)
 	chnk->allocated = 0;
 	for (hval *mark_free = chnk->contents; mark_free < chnk->contents + chnk->size; mark_free++) {
 		mark_free->type = free_t;
+		mark_free->members = NULL;
 	}
 	
 	return chnk;
@@ -44,6 +45,24 @@ mem *mem_create() {
 }
 
 void mem_destroy(mem *mem) {
+	/*for (chunk *chnk = mem->chunks + mem->num_chunks - 1; chnk >= mem->chunks; chnk--) {*/
+	for (int i = 0; i < mem->num_chunks; i++) {
+		chunk *chnk = mem->chunks[i];
+		for (hval *hv = chnk->contents + chnk->size - 1; hv >= chnk->contents; hv--) {
+			if (hv->type != free_t) {
+				hval_destroy(hv, mem, false);
+			}
+
+			if (hv->members != NULL) {
+				hash_destroy(hv->members, NULL, NULL, NULL, NULL);
+				/*free(hv->members);*/
+				hv->members = NULL;
+			}
+		}
+		free(chnk);
+	}
+
+	free(mem->chunks);
 	ll_destroy(mem->gc_roots, NULL, NULL);
 	free(mem);
 }

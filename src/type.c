@@ -338,7 +338,9 @@ void print_hash_member(hash *h, hstr *key, hval *value, buffer *b)
 hval *hval_create(type hval_type, runtime *rt)
 {
 	hval *hv = mem_alloc(rt->mem);
-	hv->members = hash_create((hash_function) hash_hstr, (key_comparator) hstr_comparator);
+	if (hv->members == NULL) {
+		hv->members = hash_create((hash_function) hash_hstr, (key_comparator) hstr_comparator);
+	}
 	if (rt->object_root) {
 		hval_hash_put(hv, PARENT, rt->object_root, rt->mem);
 	} else {
@@ -398,10 +400,11 @@ void hval_destroy(hval *hv, mem *m, bool recursive)
 
 	if (recursive) {
 		hash_destroy(hv->members, (destructor) hstr_release, NULL, (destructor) hval_release, m);
+		hv->members = NULL;
 	} else {
-		hash_destroy(hv->members, (destructor) hstr_release, NULL, NULL, NULL);
+		/*hash_destroy(hv->members, (destructor) hstr_release, NULL, NULL, NULL);*/
+		hash_empty(hv->members, (destructor) hstr_release, NULL, NULL, NULL);
 	}
-	hv->members = NULL;
 
 	mem_free(m, hv);
 }
