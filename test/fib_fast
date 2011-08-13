@@ -1,0 +1,21 @@
+fib: fn({num: 0} `(
+    i: 1
+    n2: 0
+    n1: 1
+    current: 0
+    cond(
+        (`(=(num 1)) 0)
+        (`(=(num 2)) 1)
+        (true `(
+            while(`(not(=(i num))) `(
+                current: +(n2 n1)
+                n1: n2
+                n2: current
+                i: +(i 1)
+            ))
+            current
+        ))
+    )
+))
+
+io.print(fib{num: 20})
