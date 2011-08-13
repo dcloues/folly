@@ -7,10 +7,3 @@ fib: fn({num: 1} `(
 ))
 
 io.print(fib{num: 20})
-sys.show_heap_info()
-io.print(fib{num: 20})
-sys.show_heap_info()
-io.print(fib{num: 20})
-sys.show_heap_info()
-io.print(fib{num: 20})
-sys.show_heap_info()

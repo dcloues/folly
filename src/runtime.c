@@ -76,6 +76,8 @@ static NATIVE_FUNCTION(native_not);
 static NATIVE_FUNCTION(native_xor);
 static NATIVE_FUNCTION(native_load);
 
+static NATIVE_FUNCTION(native_show_heap);
+
 #define runtime_current_token(rt) (rt->current)
 #define runtime_error(...) fprintf(stderr, __VA_ARGS__); exit(1);
 typedef void (*top_level_initializer)(runtime *);
@@ -88,6 +90,7 @@ static native_function_spec native_functions[] = {
 	{ "String.to_string", (native_function) native_string_to_string },
 	{ "Number.to_string", (native_function) native_number_to_string },
 	{ "sys.load", (native_function) native_load },
+	{ "sys.show_heap_info", (native_function) native_show_heap },
 	{ "io.print", (native_function) native_print },
 	{ "+", (native_function) native_add },
 	{ "-", (native_function) native_subtract },
@@ -697,7 +700,7 @@ hval *runtime_call_function(runtime *rt, hval *fn, hval *args, hval *context)
 	}
 
 	mem_remove_gc_root(rt->mem, args);
-	if (++gc_count == 100) {
+	if (++gc_count == 1000) {
 		gc_count = 0;
 		gc_with_temp_root(rt->mem, result);
 	}
@@ -1148,5 +1151,12 @@ NATIVE_FUNCTION(native_load)
 	runtime_load_module(rt, input);
 	lexer_input_destroy(input);
 	return hval_hash_get(rt->top_level, TRUE, rt);
+}
+
+NATIVE_FUNCTION(native_show_heap)
+{
+	debug_heap_output(rt->mem);
+	return NULL;
+	/*printf("heap size: %s bytes in %d chunks\n", rt->mem->*/
 }
 

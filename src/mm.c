@@ -17,7 +17,8 @@ chunk *chunk_create(int size)
 {
 	chunk *chnk = smalloc(sizeof(chunk) + size * sizeof(hval));
 	chnk->size = size;
-	chnk->free_hint = 0;
+	chnk->free_hint = chnk->contents;
+	chnk->allocated = 0;
 	for (hval *mark_free = chnk->contents; mark_free < chnk->contents + chnk->size; mark_free++) {
 		mark_free->type = free_t;
 	}
@@ -49,12 +50,22 @@ void mem_destroy(mem *mem) {
 
 hval *chunk_get_free(chunk *chnk)
 {
-	if (chnk->contents[chnk->free_hint].type == free_t) {
-		return chnk->contents + chnk->free_hint;
+	if (chnk->allocated == chnk->size) {
+		return NULL;
+	}
+
+	if (chnk->free_hint < chnk->contents + chnk->size && chnk->free_hint->type == free_t) {
+		hval *hv = chnk->free_hint;
+		chnk->free_hint++;
+		chnk->allocated++;
+		return hv;
+		/*return chnk->contents + chnk->free_hint;*/
 	}
 
 	for (hval *hv = chnk->contents; hv < chnk->contents + chnk->size; hv++) {
 		if (hv->type == free_t) {
+			chnk->free_hint = hv + 1;
+			chnk->allocated++;
 			return hv;
 		}
 	}
@@ -72,11 +83,22 @@ hval *mem_alloc(mem *m) {
 		}
 	}
 
+	gc(m);
+	for (int i=m->num_chunks - 1; i >= 0; i--) {
+		chunk *chnk = m->chunks[i];
+		hv = chunk_get_free(chnk);
+		if (hv) {
+			return hv;
+		}
+	}
+
+	printf("growing heap:\n");
+	debug_heap_output(m);
+
 	m->chunks = realloc(m->chunks, sizeof(chunk *) * (m->num_chunks + 1));
 	m->chunks[m->num_chunks] = chunk_create(DEFAULT_CHUNK_SIZE);
 	hv = chunk_get_free(m->chunks[m->num_chunks]);
 	if (hv == NULL) {
-		printf("unable to grow heap\n");
 		exit(2);
 	}
 	m->num_chunks++;
@@ -163,11 +185,24 @@ void sweep(mem *mem)
 	hlog("sweeping\n");
 	for (int i = 0; i < mem->num_chunks; i++) {
 		chunk *chnk = mem->chunks[i];
-		for (hval *hv = chnk->contents; hv < chnk->contents + chnk->size; hv++) {
+		/*for (hval *hv = chnk->contents; hv < chnk->contents + chnk->size; hv++) {*/
+		for (hval *hv = chnk->contents + chnk->size - 1; hv >= chnk->contents; --hv) {
 			if (hv->type != free_t && !hv->reachable) {
 				hval_destroy(hv, mem, false);
 				hv->type = free_t;
+				chnk->allocated--;
+				chnk->free_hint = hv;
 			}
 		}
+	}
+}
+
+void debug_heap_output(mem *mem)
+{
+	printf("heap: %d chunks\n", mem->num_chunks);
+	int total = 0;
+	for (int i = 0; i < mem->num_chunks; i++) {
+		chunk *chnk = mem->chunks[i];
+		printf(" chunk %p: %6d / %6d\n", chnk, chnk->allocated, chnk->size);
 	}
 }
