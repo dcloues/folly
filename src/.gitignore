@@ -20,4 +20,4 @@ src/Makefile.in
 configure.scan
 *.o
 .deps/*
-parsify
+folly
