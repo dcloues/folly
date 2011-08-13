@@ -300,9 +300,9 @@ hval *runtime_exec(runtime *runtime, lexer_input *input)
 	expr_destroy(expr, true, runtime->mem);
 	expr = NULL;
 
-	char *str = hval_to_string(ret);
-	hlog("eval got result: %s", str);
-	free(str);
+	/*char *str = hval_to_string(ret);*/
+	/*hlog("eval got result: %s", str);*/
+	/*free(str);*/
 
 	return runtime->top_level;
 }
@@ -688,7 +688,7 @@ static hval *eval_expr_invocation(runtime *rt, invocation *inv, hval *context)
 
 hval *runtime_call_function(runtime *rt, hval *fn, hval *args, hval *context)
 {
-	static int gc_count = 0;
+	/*static int gc_count = 0;*/
 
 	mem_add_gc_root(rt->mem, args);
 	hval *result = NULL;
@@ -700,10 +700,10 @@ hval *runtime_call_function(runtime *rt, hval *fn, hval *args, hval *context)
 	}
 
 	mem_remove_gc_root(rt->mem, args);
-	if (++gc_count == 1000) {
-		gc_count = 0;
-		gc_with_temp_root(rt->mem, result);
-	}
+	/*if (++gc_count == 1000) {*/
+		/*gc_count = 0;*/
+		/*gc_with_temp_root(rt->mem, result);*/
+	/*}*/
 	return result;
 }
 
