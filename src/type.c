@@ -151,14 +151,11 @@ hval *hval_hash_get(hval *hv, hstr *key, runtime *rt)
 	hval *val = hash_get(h, key);
 	if (val == NULL)
 	{
-		/*char *dump_str = hval_to_string(hv);*/
-		/*hlog("%s not found in %s\n", key->str, dump_str);*/
-		/*free(dump_str);*/
 		hval *parent = hash_get(h, PARENT);
 		val = hval_hash_get(parent, key, rt);
 
 		hval *self = hval_get_self(val);
-		if (rt && val && hval_is_callable(val) && (self == NULL || self == parent)) {
+		if (rt && val && hval_is_callable(val) && (self == NULL || (self == parent && self != rt->top_level))) {
 			val = hval_clone(val, rt);
 			hval_bind_function(val, hv, rt->mem);
 			hval_hash_put(hv, key, val, rt->mem);
