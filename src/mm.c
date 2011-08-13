@@ -19,6 +19,7 @@ chunk *chunk_create(int size)
 	chnk->size = size;
 	chnk->free_hint = chnk->contents;
 	chnk->allocated = 0;
+	chnk->free_list = ll_create();
 	for (hval *mark_free = chnk->contents; mark_free < chnk->contents + chnk->size; mark_free++) {
 		mark_free->type = free_t;
 		mark_free->members = NULL;
@@ -73,20 +74,19 @@ hval *chunk_get_free(chunk *chnk)
 		return NULL;
 	}
 
+	hval *hv = NULL;
+	if (chnk->free_list->size > 0) {
+		hv = (hval *) chnk->free_list->head->data;
+		ll_remove_first(chnk->free_list, hv);
+		chnk->allocated++;
+		return hv;
+	}
+
 	if (chnk->free_hint < chnk->contents + chnk->size && chnk->free_hint->type == free_t) {
 		hval *hv = chnk->free_hint;
 		chnk->free_hint++;
 		chnk->allocated++;
 		return hv;
-		/*return chnk->contents + chnk->free_hint;*/
-	}
-
-	for (hval *hv = chnk->contents; hv < chnk->contents + chnk->size; hv++) {
-		if (hv->type == free_t) {
-			chnk->free_hint = hv + 1;
-			chnk->allocated++;
-			return hv;
-		}
 	}
 
 	return NULL;
@@ -210,7 +210,8 @@ void sweep(mem *mem)
 				hval_destroy(hv, mem, false);
 				hv->type = free_t;
 				chnk->allocated--;
-				chnk->free_hint = hv;
+				ll_insert_head(chnk->free_list, hv);
+				/*chnk->free_hint = hv;*/
 			}
 		}
 	}

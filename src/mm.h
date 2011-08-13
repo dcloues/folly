@@ -8,6 +8,7 @@ typedef struct _chunk {
 	int size;
 	hval *free_hint;
 	int allocated;
+	linked_list *free_list;
 	hval contents[];
 } chunk;
 
