@@ -1,4 +1,4 @@
 CFLAGS=-g -O0
 
-SUBDIRS = src
+SUBDIRS = src . tests
 dist_doc_DATA = README

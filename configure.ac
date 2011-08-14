@@ -31,6 +31,8 @@ if test "x${gc_reporting}" == xyes; then
     AC_DEFINE([GC_REPORTING], 1, [gc reporting enabled])
 fi
 
+PKG_CHECK_MODULES([CHECK], [check >= 0.9.4])
+
 # Checks for header files.
 
 # Checks for typedefs, structures, and compiler characteristics.
@@ -38,5 +40,6 @@ fi
 # Checks for library functions.
 
 AC_CONFIG_FILES([Makefile
-                 src/Makefile])
+                 src/Makefile
+                 tests/Makefile])
 AC_OUTPUT
