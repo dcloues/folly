@@ -68,6 +68,25 @@ START_TEST(test_hash_iterator)
 }
 END_TEST
 
+START_TEST(test_hash_empty)
+{
+	hash *h = hash_create(hash_string, hash_string_comparator);
+	hash_put(h, "k1", "v1");
+	hash_put(h, "k2", "v2");
+	hash_empty(h, NULL, NULL, NULL, NULL);
+	fail_unless(h->size == 0);
+	int count = 0;
+	hash_iterator *iter = hash_iterator_create(h);
+	while (iter->current_key) {
+		++count;
+		hash_iterator_next(iter);
+	}
+	fail_unless(count == 0, "hash_empty() reset size but left elements behind");
+
+	hash_iterator_destroy(iter);
+}
+END_TEST
+
 Suite *ht_suite(void)
 {
 	Suite *s = suite_create("ht");
@@ -75,6 +94,7 @@ Suite *ht_suite(void)
 	tcase_add_test(tc_core, test_hash_put);
 	tcase_add_test(tc_core, test_hash_overwrite);
 	tcase_add_test(tc_core, test_hash_iterator);
+	tcase_add_test(tc_core, test_hash_empty);
 	suite_add_tcase(s, tc_core);
 	return s;
 }
