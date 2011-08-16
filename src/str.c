@@ -1,6 +1,7 @@
 #include "str.h"
 #include <stdlib.h>
 #include <string.h>
+#include "smalloc.h"
 
 hstr *hstr_create(char *chars)
 {
@@ -9,12 +10,7 @@ hstr *hstr_create(char *chars)
 
 hstr *hstr_create_len(char *src, size_t size)
 {
-	hstr *hs = malloc(sizeof(hstr));
-	if (hs == NULL)
-	{
-		return NULL;
-	}
-
+	hstr *hs = smalloc(sizeof(hstr) + size + 1);
 	hstr_init(hs, src, size);
 	return hs;
 }
@@ -22,14 +18,10 @@ hstr *hstr_create_len(char *src, size_t size)
 void hstr_init(hstr *hs, char *chars, size_t len)
 {
 	hs->refs = 1;
-	hs->str = malloc(len + 1);
 	hs->str[len] = '\0';
 	hs->hash_calculated = false;
 	hs->hash = 0;
-	if (hs->str != NULL)
-	{
-		strncpy(hs->str, chars, len);
-	}
+	strncpy(hs->str, chars, len);
 }
 
 void hstr_retain(hstr *hs)
@@ -42,8 +34,6 @@ void hstr_release(hstr *hs)
 	hs->refs--;
 	if (hs->refs == 0)
 	{
-		free(hs->str);
-		hs->str = NULL;
 		free(hs);
 	}
 }

@@ -4,10 +4,10 @@
 #include <stdlib.h>
 
 typedef struct {
-	char *str;
 	int refs;
 	bool hash_calculated;
 	int hash;
+	char str[];
 } hstr;
 
 hstr *hstr_create(char *);
