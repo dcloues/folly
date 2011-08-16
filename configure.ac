@@ -10,6 +10,7 @@ AM_INIT_AUTOMAKE([-Wall -Werror foreign])
 
 # Checks for programs.
 AC_PROG_CC([clang gcc])
+AC_PROG_CC_C99()
 
 # Checks for libraries.
 # FIXME: Replace `main' with a function in `-lncurses':
@@ -43,3 +44,10 @@ AC_CONFIG_FILES([Makefile
                  src/Makefile
                  tests/Makefile])
 AC_OUTPUT
+
+echo "
+    Object Alloc. Stats...: $hval_stats
+    GC Stats..............: $gc_reporting
+    C Compiler............: $CC $CFLAGS
+    Linker................: $LD $LDFLAGS $LIBS
+"
