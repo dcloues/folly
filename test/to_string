@@ -1,0 +1,17 @@
+counter: {
+    value: 0
+    tick: () -> (
+        self.value: +(self.value 1)
+    )
+
+    to_string: () -> (
+        String.concat("Counter: " self.value)
+    )
+}
+
+c1: counter.clone()
+c1.tick()
+io.print(c1)
+c1.tick()
+c1.tick()
+io.print(c1)

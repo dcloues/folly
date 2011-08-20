@@ -90,7 +90,7 @@ hval *hval_clone(hval *val, runtime *rt) {
 		clone->value.native_fn = val->value.native_fn;
 		break;
 	default:
-		hlog("hval_clone() does not support type %s", hval_type_string(val->type));
+		printf("hval_clone() does not support type %s", hval_type_string(val->type));
 		exit(1);
 		break;
 	}

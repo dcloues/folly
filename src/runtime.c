@@ -79,6 +79,7 @@ static NATIVE_FUNCTION(native_and);
 static NATIVE_FUNCTION(native_not);
 static NATIVE_FUNCTION(native_xor);
 static NATIVE_FUNCTION(native_load);
+static NATIVE_FUNCTION(native_string_concat);
 
 static NATIVE_FUNCTION(native_show_heap);
 
@@ -92,6 +93,7 @@ static native_function_spec native_functions[] = {
 	{ "Object.is_true", (native_function) native_is_true },
 	{ "Object.to_string", (native_function) native_to_string },
 	{ "String.to_string", (native_function) native_string_to_string },
+	{ "String.concat", (native_function) native_string_concat },
 	{ "Number.to_string", (native_function) native_number_to_string },
 	{ "sys.load", (native_function) native_load },
 	{ "sys.show_heap_info", (native_function) native_show_heap },
@@ -581,7 +583,8 @@ static hval *runtime_evaluate_expression(runtime *rt, expression *expr, hval *co
 
 static hval *eval_expr_function_declaration(runtime *rt, function_declaration *decl, hval *context)
 {
-	hval *fn = hval_create(function_t, rt);
+	/*hval *fn = hval_create(function_t, rt);*/
+	hval *fn = hval_hash_create(rt);
 	expression *expr = decl->body;
 	hval *args = eval_expr_function_args(rt, decl->args, false, context);
 	hval_hash_put(fn, FN_ARGS, args, rt->mem);
@@ -740,6 +743,8 @@ static hval *get_prop_ref_site(runtime *rt, prop_ref *ref, hval *context)
 	}
 }
 
+static hval *runtime_call_function_helper(runtime *rt, hval *fn, hval *in_args, hval *context);
+
 static hval *eval_expr_invocation(runtime *rt, invocation *inv, hval *context)
 {
 	hval *fn = runtime_evaluate_expression(rt, inv->function, context);
@@ -751,6 +756,10 @@ static hval *eval_expr_invocation(runtime *rt, invocation *inv, hval *context)
 	// coalesce the provided args and the defaults into a hash
 	// for function invocation, order is irrelevent
 	hval *in_args = eval_expr_function_args(rt, inv->list_args, true, context);
+	return runtime_call_function_helper(rt, fn, in_args, context);
+}
+
+static hval *runtime_call_function_helper(runtime *rt, hval *fn, hval *in_args, hval *context) {
 	hval *args = NULL;
 	if (fn->type == native_function_t) {
 		// Native functions can manually extract named functions,
@@ -759,21 +768,23 @@ static hval *eval_expr_invocation(runtime *rt, invocation *inv, hval *context)
 	} else {
 		args = hval_hash_create(rt);
 		hval *default_args = hval_hash_get(fn, FN_ARGS, rt);
-		hval *vals[2] = {default_args, in_args};
 		hval *name = NULL;
 		hval *value = NULL;
-
-		ll_node *node = in_args->value.list->head;
+		ll_node *node;
 		linked_list *unnamed = ll_create();
-		while (node) {
-			value = runtime_get_arg_value(node);
-			name = runtime_get_arg_name(node);
-			if (name) {
-				hval_hash_put(args, name->value.str, value, rt->mem);
-			} else {
-				ll_insert_tail(unnamed, value);
+
+		if (in_args) {
+			node = in_args->value.list->head;
+			while (node) {
+				value = runtime_get_arg_value(node);
+				name = runtime_get_arg_name(node);
+				if (name) {
+					hval_hash_put(args, name->value.str, value, rt->mem);
+				} else {
+					ll_insert_tail(unnamed, value);
+				}
+				node = node->next;
 			}
-			node = node->next;
 		}
 
 		node = default_args->value.list->head;
@@ -807,8 +818,14 @@ static hval *eval_expr_invocation(runtime *rt, invocation *inv, hval *context)
 hval *runtime_call_function(runtime *rt, hval *fn, hval *args, hval *context)
 {
 	/*static int gc_count = 0;*/
+	if (!args &&  fn->type == native_function_t) {
+		args = hval_list_create(rt);
+	}
 
-	mem_add_gc_root(rt->mem, args);
+	if (args) {
+		mem_add_gc_root(rt->mem, args);
+	}
+
 	hval *result = NULL;
 	if (fn->type == native_function_t) {
 		hval *self = hval_get_self(fn);
@@ -817,7 +834,9 @@ hval *runtime_call_function(runtime *rt, hval *fn, hval *args, hval *context)
 		result = eval_expr_folly_invocation(rt, fn, args, context);
 	}
 
-	mem_remove_gc_root(rt->mem, args);
+	if (args) {
+		mem_remove_gc_root(rt->mem, args);
+	}
 	/*if (++gc_count == 1000) {*/
 		/*gc_count = 0;*/
 		/*gc_with_temp_root(rt->mem, result);*/
@@ -827,23 +846,24 @@ hval *runtime_call_function(runtime *rt, hval *fn, hval *args, hval *context)
 
 hval *runtime_call_hnamed_function(runtime *rt, hstr *name, hval *site, hval *args, hval *context) {
 	hval *func = hval_hash_get(site, name, rt);
-	return runtime_call_function(rt, func, args, context);
+	return runtime_call_function_helper(rt, func, args, context);
+	//return runtime_call_function(rt, func, args, context);
 }
 
 static hval *eval_expr_folly_invocation(runtime *rt, hval *fn, hval *args, hval *context)
 {
 	hval *expr = hval_hash_get(fn, FN_EXPR, rt);
-	hval *default_args = hval_hash_get(fn, FN_ARGS, rt);
-	if (default_args->type != args->type) {
-		hlog("Error: argument type mismatch\n");
-	}
+	/*hval *default_args = hval_hash_get(fn, FN_ARGS, rt);*/
+	/*if (default_args->type != args->type) {*/
+		/*hlog("Error: argument type mismatch\n");*/
+	/*}*/
 
 	hval *fn_context = hval_hash_create_child(expr->value.deferred_expression.ctx, rt);
 	/*hlog("created function context %p with parent %p\n", fn_context, expr->value.deferred_expression.ctx);*/
 	mem_add_gc_root(rt->mem, fn_context);
 	if (args->type == hash_t) {
 		/*hlog("put all: default args\n");*/
-		hval_hash_put_all(fn_context, default_args, rt->mem);
+		/*hval_hash_put_all(fn_context, default_args, rt->mem);*/
 		/*hlog("put all: args\n");*/
 		hval_hash_put_all(fn_context, args, rt->mem);
 		/*hlog("get self..\n");*/
@@ -1047,7 +1067,6 @@ static hval *native_fn(runtime *rt, hval *this, hval *args)
 
 static hval *native_clone(runtime *rt, hval *this, hval *args)
 {
-	hlog("native_clone: %p\n", this);
 	return hval_clone(this, rt);
 }
 
@@ -1149,7 +1168,7 @@ static hval *undefer(runtime *rt, hval *maybe_deferred) {
 void runtime_extract_arg_list(runtime *rt, hval *arglist, ...)
 {
 	if (arglist->type != list_t) {
-		runtime_error("argument error: expected list");
+		runtime_error("argument error: expected list\n");
 	}
 
 	va_list vargs;
@@ -1176,7 +1195,7 @@ void runtime_extract_arg_list(runtime *rt, hval *arglist, ...)
 NATIVE_FUNCTION(native_and)
 {
 	if (args->type != list_t) {
-		runtime_error("argument mismatch: expected list");
+		runtime_error("argument mismatch: expected list\n");
 	}
 
 	ll_node *node = args->value.list->head;
@@ -1196,7 +1215,7 @@ NATIVE_FUNCTION(native_and)
 NATIVE_FUNCTION(native_or)
 {
 	if (args->type != list_t) {
-		runtime_error("argument mismatch: expected list");
+		runtime_error("argument mismatch: expected list\n");
 	}
 
 	ll_node *node = args->value.list->head;
@@ -1216,11 +1235,11 @@ NATIVE_FUNCTION(native_or)
 NATIVE_FUNCTION(native_not)
 {
 	if (args->type != list_t) {
-		runtime_error("argument mismatch: expected list");
+		runtime_error("argument mismatch: expected list\n");
 	}
 
 	if (args->value.list->size != 1) {
-		runtime_error("argument count mismatch: not() accepts exactly 1");
+		runtime_error("argument count mismatch: not() accepts exactly 1\n");
 	}
 
 	hval *value = runtime_get_arg_value(args->value.list->head);
@@ -1230,7 +1249,7 @@ NATIVE_FUNCTION(native_not)
 NATIVE_FUNCTION(native_xor)
 {
 	if (args->type != list_t) {
-		runtime_error("argument mismatch: expected list");
+		runtime_error("argument mismatch: expected list\n");
 	}
 	ll_node *node = args->value.list->head;
 	int truths = 0;
@@ -1287,13 +1306,25 @@ NATIVE_FUNCTION(native_show_heap)
 	/*printf("heap size: %s bytes in %d chunks\n", rt->mem->*/
 }
 
-/*void runtime_get_arg_value(ll_node *node)*/
-/*{*/
-	/*hval *wrapper = (hval *) node->data;*/
-	/*return hval_hash_get(wrapper, VALUE, NULL);*/
-/*}*/
+static NATIVE_FUNCTION(native_string_concat)
+{
+	hstr *name = hstr_create("to_string");
+	buffer *buf = buffer_create(128);
+	hval *arg = NULL, *arg_str;
+	/*char *arg_str = NULL;*/
+	LL_FOREACH(args->value.list, arg_node) {
+		arg = runtime_get_arg_value(arg_node);
+		arg_str = runtime_call_hnamed_function(rt, name, arg, NULL, rt->top_level);
+		/*arg_str = hval_to_string(arg);*/
+		buffer_append_string(buf, arg_str->value.str->str);
+		hval_release(arg_str, rt->mem);
+	}
 
-/*void runtime_get_arg_name(runtime *runtime, ll_node *node)*/
-/*{*/
-	
-/*}*/
+	hstr *hs = hstr_create(buf->data);
+	hval *str = hval_string_create(hs, rt);
+	hstr_release(hs);
+	buffer_destroy(buf);
+
+	hstr_release(name);
+	return str;
+}
