@@ -581,15 +581,11 @@ static hval *runtime_evaluate_expression(runtime *rt, expression *expr, hval *co
 
 static hval *eval_expr_function_declaration(runtime *rt, function_declaration *decl, hval *context)
 {
-	fprintf(stderr, "evaluating function declaration\n");
 	hval *fn = hval_create(function_t, rt);
-	/*fn->value.fn.ctx = context;*/
-	/*fn->value.fn.args = eval_expr_function_args(rt, decl->args, context);*/
 	expression *expr = decl->body;
 	hval *args = eval_expr_function_args(rt, decl->args, false, context);
 	hval_hash_put(fn, FN_ARGS, args, rt->mem);
 	hval_hash_put(fn, FN_EXPR, eval_expr_deferred(rt, expr, context), rt->mem);
-	/*fn->value.fn.args = decl->body;*/
 
 	return fn;
 }
@@ -620,13 +616,9 @@ static hval *eval_expr_function_args(runtime *rt, expression *expr, bool for_inv
 			hval_hash_put(arg, VALUE, runtime_evaluate_expression(rt, set->value, context), rt->mem);
 			break;
 		default:
-			fprintf(stderr, "here we go\n");
 			value = runtime_evaluate_expression(rt, arg_expr, context);
-			fprintf(stderr, "Unnamed argument: %s\n", hval_to_string(value));
-			/*hval_hash_put(arg, VALUE, runtime_evaluate_expression(rt, arg_expr, context), rt->mem);*/
 			hval_hash_put(arg, VALUE, value, rt->mem);
 			value = NULL;
-			/*runtime_error("Unexpected argument");*/
 		}
 
 		arg_node = arg_node->next;
@@ -756,19 +748,12 @@ static hval *eval_expr_invocation(runtime *rt, invocation *inv, hval *context)
 	{
 		return NULL;
 	}
-	/*hval *args = (inv->list_args != NULL)*/
-			/*? eval_expr_list_literal(rt, inv->list_args, context)*/
-			/*: eval_expr_hash_literal(rt, inv->hash_args->operation.hash_literal, context);*/
 
-	fprintf(stderr, "trying to invoke a function\n");
 	// coalesce the provided args and the defaults into a hash
 	// for function invocation, order is irrelevent
 	hval *in_args = eval_expr_function_args(rt, inv->list_args, true, context);
 	hval *args = NULL;
-	//hval_hash_create(rt);
 	if (fn->type == native_function_t) {
-		fprintf(stderr, "native function - no arg mangling\n");
-		// TODO support default args for native functions
 		args = in_args;
 	} else {
 		args = hval_hash_create(rt);
@@ -777,7 +762,6 @@ static hval *eval_expr_invocation(runtime *rt, invocation *inv, hval *context)
 		hval *name = NULL;
 		hval *value = NULL;
 		for (int i = 0; i < 2; i++) {
-			printf("node: %d\n", i);
 			ll_node *node = vals[i]->value.list->head;
 			while (node) {
 				name = hval_hash_get((hval *) node->data, NAME, rt);
@@ -907,7 +891,7 @@ static hval *native_print(runtime *rt, hval *self, hval *args)
 			}
 			printed_any = true;
 
-			arg = (hval *) node->data;
+			arg = runtime_get_arg_value(node);
 			str = runtime_call_hnamed_function(rt, name, arg, NULL, rt->top_level);
 			fputs(str->value.str->str, stdout);
 			hval_release(str, rt->mem);
@@ -926,16 +910,12 @@ static hval *native_print(runtime *rt, hval *self, hval *args)
 
 static hval *native_add(runtime *rt, hval *this, hval *args)
 {
-	fprintf(stderr, "native_add\n");
 	int sum = 0;
 	ll_node *current = args->value.list->head;
-	hval *wrapper = NULL, *item = NULL;
+	hval *item = NULL;
 	while (current) {
-		wrapper = (hval *) current->data;
-		item = hval_hash_get(wrapper, VALUE, NULL);
-		fprintf(stderr, " + %d\n", item->value.number);
+		item = runtime_get_arg_value(current);
 		sum += item->value.number;
-		/*sum += ((hval *) current->data)->value.number;*/
 		current = current->next;
 	}
 
@@ -946,15 +926,19 @@ static hval *native_subtract(runtime *rt, hval *this, hval *args)
 {
 	int val = 0;
 	linked_list *arglist = args->value.list;
+	hval *hv = NULL;
 	if (arglist->size == 0) {
 		val = 0;
 	} else if (arglist->size == 1) {
-		val = -((hval *) arglist->head->data)->value.number;
-	} else {
-		val = ((hval *) arglist->head->data)->value.number;
+		hv = runtime_get_arg_value(arglist->head);
+		val = -hval_number_value(hv);
+	} else 	{
+		hv = runtime_get_arg_value(arglist->head);
+		val = hval_number_value(hv);
 		ll_node *current = arglist->head->next;
 		while (current) {
-			val = val - ((hval *) current->data)->value.number;
+			hv = runtime_get_arg_value(current);
+			val = val - hval_number_value(hv);
 			current = current->next;
 		}
 	}
@@ -968,12 +952,13 @@ NATIVE_FUNCTION(native_equals) {
 	}
 
 	// TODO Make this polymorphic, using an = method on objects
-	hval *ref = (hval *) args->value.list->head->data;
+	hval *ref = runtime_get_arg_value(args->value.list->head);
+	/*hval *ref = (hval *) args->value.list->head->data;*/
 	hval *candidate = NULL;
 	bool equals = true;
 	ll_node *node = args->value.list->head->next;
 	while (node && equals) {
-		candidate = (hval *) node->data;
+		candidate = runtime_get_arg_value(node);
 		if (ref->type != candidate->type) {
 			/*runtime_error("type mismatch in native_equals\n");*/
 			equals = false;
@@ -1087,7 +1072,8 @@ static hval *native_cond(runtime *rt, hval *this, hval *args)
 
 	ll_node *test_node = args->value.list->head;
 	while (test_node) {
-		hval *cond_hval = (hval *) test_node->data;
+		/*hval *cond_hval = (hval *) test_node->data;*/
+		hval *cond_hval = runtime_get_arg_value(test_node);
 		linked_list *cond_pair = cond_hval->value.list;
 
 		hval *test = undefer(rt, (hval *) cond_pair->head->data);
@@ -1145,7 +1131,8 @@ void runtime_extract_arg_list(runtime *rt, hval *arglist, ...)
 	ll_node *arglist_node = arglist->value.list->head;
 	while ((dest = va_arg(vargs, hval**)) != NULL) {
 		expected_type = va_arg(vargs, type);
-		value = (hval *) arglist_node->data;
+		/*value = (hval *) arglist_node->data;*/
+		value = runtime_get_arg_value(arglist_node);
 		if (value->type == expected_type) {
 			*dest = value;
 		} else {
@@ -1166,7 +1153,7 @@ NATIVE_FUNCTION(native_and)
 	ll_node *node = args->value.list->head;
 	bool result = true;
 	while (node && result) {
-		hval *current = (hval *) node->data;
+		hval *current = runtime_get_arg_value(node);
 		current = undefer(rt, current);
 		if (!hval_is_true(current)) {
 			result = false;
@@ -1186,7 +1173,7 @@ NATIVE_FUNCTION(native_or)
 	ll_node *node = args->value.list->head;
 	bool result = false;
 	while (node && !result) {
-		hval *current = (hval *) node->data;
+		hval *current = runtime_get_arg_value(node);
 		current = undefer(rt, current);
 		if (hval_is_true(current)) {
 			result = true;
@@ -1207,7 +1194,7 @@ NATIVE_FUNCTION(native_not)
 		runtime_error("argument count mismatch: not() accepts exactly 1");
 	}
 
-	hval *value = (hval *) args->value.list->head->data;
+	hval *value = runtime_get_arg_value(args->value.list->head);
 	return hval_number_create(hval_is_true(value) ? 0 : 1, rt);
 }
 
@@ -1219,7 +1206,7 @@ NATIVE_FUNCTION(native_xor)
 	ll_node *node = args->value.list->head;
 	int truths = 0;
 	while (node) {
-		hval *val = (hval *) node->data;
+		hval *val = runtime_get_arg_value(node);
 		if (hval_is_true(val)) {
 			++truths;
 			if (truths > 1) {
@@ -1271,3 +1258,13 @@ NATIVE_FUNCTION(native_show_heap)
 	/*printf("heap size: %s bytes in %d chunks\n", rt->mem->*/
 }
 
+/*void runtime_get_arg_value(ll_node *node)*/
+/*{*/
+	/*hval *wrapper = (hval *) node->data;*/
+	/*return hval_hash_get(wrapper, VALUE, NULL);*/
+/*}*/
+
+/*void runtime_get_arg_name(runtime *runtime, ll_node *node)*/
+/*{*/
+	
+/*}*/

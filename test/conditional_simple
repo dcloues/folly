@@ -1,21 +1,21 @@
-test: fn({val: 0} `(
+test: (val: 0) -> (
     io.print("test" val)
     val
-))
+)
 
-fun1: fn({} `(
+fun1: () -> (
     io.print("fun1 called")
     "fun1"
-))
+)
 
-fun2: fn({} `(
+fun2: () -> (
     io.print("fun2 called")
     "fun2"
-))
+)
 
 val: cond(
-    (`(test{val: 0}) `(fun1{}))
-    (`(test{val: 1}) `(fun2{}))
+    (`(test(val: 0)) `(fun1()))
+    (`(test(val: 1)) `(fun2()))
 )
 
 io.print(val)

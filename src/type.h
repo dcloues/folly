@@ -52,6 +52,8 @@ hval *hval_get_self(hval *);
 bool hval_is_callable(hval *test);
 bool hval_is_true(hval *test);
 
+#define hval_number_value(hv) ((hv ? hv->value.number : 0))
+
 #if HVAL_STATS
 void print_hval_stats();
 #endif
