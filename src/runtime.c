@@ -743,7 +743,6 @@ static hval *get_prop_ref_site(runtime *rt, prop_ref *ref, hval *context)
 	}
 }
 
-static hval *runtime_call_function_helper(runtime *rt, hval *fn, hval *in_args, hval *context);
 
 static hval *eval_expr_invocation(runtime *rt, invocation *inv, hval *context)
 {
@@ -756,10 +755,11 @@ static hval *eval_expr_invocation(runtime *rt, invocation *inv, hval *context)
 	// coalesce the provided args and the defaults into a hash
 	// for function invocation, order is irrelevent
 	hval *in_args = eval_expr_function_args(rt, inv->list_args, true, context);
-	return runtime_call_function_helper(rt, fn, in_args, context);
+	hval *args = runtime_build_function_arguments(rt, fn, in_args);
+	return runtime_call_function(rt, fn, args, context);
 }
 
-static hval *runtime_call_function_helper(runtime *rt, hval *fn, hval *in_args, hval *context) {
+hval *runtime_build_function_arguments(runtime *rt, hval *fn, hval *in_args) {
 	hval *args = NULL;
 	if (fn->type == native_function_t) {
 		// Native functions can manually extract named functions,
@@ -812,7 +812,7 @@ static hval *runtime_call_function_helper(runtime *rt, hval *fn, hval *in_args, 
 		}
 	}
 
-	return runtime_call_function(rt, fn, args, context);
+	return args;
 }
 
 hval *runtime_call_function(runtime *rt, hval *fn, hval *args, hval *context)
@@ -846,29 +846,19 @@ hval *runtime_call_function(runtime *rt, hval *fn, hval *args, hval *context)
 
 hval *runtime_call_hnamed_function(runtime *rt, hstr *name, hval *site, hval *args, hval *context) {
 	hval *func = hval_hash_get(site, name, rt);
-	return runtime_call_function_helper(rt, func, args, context);
+	hval *prepared_args = runtime_build_function_arguments(rt, func, args);
+	return runtime_call_function(rt, func, prepared_args, context);
 	//return runtime_call_function(rt, func, args, context);
 }
 
 static hval *eval_expr_folly_invocation(runtime *rt, hval *fn, hval *args, hval *context)
 {
 	hval *expr = hval_hash_get(fn, FN_EXPR, rt);
-	/*hval *default_args = hval_hash_get(fn, FN_ARGS, rt);*/
-	/*if (default_args->type != args->type) {*/
-		/*hlog("Error: argument type mismatch\n");*/
-	/*}*/
-
 	hval *fn_context = hval_hash_create_child(expr->value.deferred_expression.ctx, rt);
-	/*hlog("created function context %p with parent %p\n", fn_context, expr->value.deferred_expression.ctx);*/
 	mem_add_gc_root(rt->mem, fn_context);
 	if (args->type == hash_t) {
-		/*hlog("put all: default args\n");*/
-		/*hval_hash_put_all(fn_context, default_args, rt->mem);*/
-		/*hlog("put all: args\n");*/
 		hval_hash_put_all(fn_context, args, rt->mem);
-		/*hlog("get self..\n");*/
 		hval *self = hval_get_self(fn);
-		/*hlog("setting self: %p\n", self);*/
 		hval_hash_put(fn_context, FN_SELF, self, rt->mem);
 	}
 

@@ -35,6 +35,7 @@ hval *runtime_call_function(runtime *runtime, hval *fn, hval *args, hval *contex
 hval *runtime_call_hnamed_function(runtime *runtime, hstr *name, hval *site, hval *args, hval *context);
 void runtime_init_globals();
 void runtime_destroy_globals();
+hval *runtime_build_function_arguments(runtime *runtime, hval *fn, hval *in_args);
 
 #define runtime_get_arg_value(lln) (hval_hash_get(((hval *)lln->data), VALUE, NULL))
 #define runtime_get_arg_name(lln) (hval_hash_get(((hval *)lln->data), NAME, NULL))
