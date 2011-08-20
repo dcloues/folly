@@ -3,6 +3,7 @@
 #include <string.h>
 #include <strings.h>
 #include <stdio.h>
+#include <assert.h>
 #include "buffer.h"
 #include "fmt.h"
 #include "ht.h"
@@ -41,6 +42,8 @@ void type_init_globals()
 	BOOLEAN = hstr_create("Boolean");
 	TRUE = hstr_create("true");
 	FALSE = hstr_create("false");
+	NAME = hstr_create("name");
+	VALUE = hstr_create("value");
 }
 
 void type_destroy_globals()
@@ -54,6 +57,8 @@ void type_destroy_globals()
 	hstr_release(BOOLEAN);
 	hstr_release(TRUE);
 	hstr_release(FALSE);
+	hstr_release(NAME);
+	hstr_release(VALUE);
 }
 
 const char *hval_type_string(type t)
@@ -203,6 +208,7 @@ hval *hval_list_create(runtime *rt)
 {
 	hval *hv = hval_create(list_t, rt);
 	hv->value.list = ll_create();
+	assert(hv->value.list != NULL);
 	return hv;
 }
 
@@ -222,7 +228,7 @@ void hval_list_insert_head(hval *list, hval *val)
 	{
 		hval_retain(val);
 	}
-
+	assert(list->value.list != NULL);
 	ll_insert_head(list->value.list, val);
 }
 
@@ -284,6 +290,8 @@ char *hval_to_string(hval *hval)
 			return fmt("deferred expression");
 		case boolean_t:
 			return fmt("boolean (%s)", hval->value.boolean ? "true" : "false");
+		default:
+			return fmt("[?]");
 
 	}
 
@@ -413,6 +421,10 @@ void hval_destroy(hval *hv, mem *m, bool recursive)
 			}
 			expr_destroy(hv->value.deferred_expression.expr, recursive, m);
 			break;
+		/*case function_t:*/
+			/*free(hv->value.function_declaration);*/
+			/*break;*/
+
 	}
 
 	if (recursive) {

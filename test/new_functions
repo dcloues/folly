@@ -1,0 +1,5 @@
+test: (a b) -> (
+    +(a b)
+)
+
+io.print(test(a: 5 b: 10))

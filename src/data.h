@@ -4,8 +4,8 @@
 #include "ht.h"
 #include "str.h"
 
-typedef enum { free_t, string_t, number_t, hash_t, list_t, deferred_expression_t, native_function_t, boolean_t } type;
-typedef enum { expr_prop_ref_t, expr_prop_set_t, expr_invocation_t, expr_list_literal_t, expr_hash_literal_t, expr_primitive_t, expr_list_t, expr_deferred_t } expression_type;
+typedef enum { free_t, string_t, number_t, hash_t, list_t, deferred_expression_t, native_function_t, boolean_t, function_t } type;
+typedef enum { expr_prop_ref_t, expr_prop_set_t, expr_invocation_t, expr_list_literal_t, expr_hash_literal_t, expr_primitive_t, expr_list_t, expr_deferred_t, expr_function_t } expression_type;
 
 typedef struct hval hval;
 typedef struct expression expression;
@@ -26,6 +26,11 @@ typedef struct invocation {
 	expression *hash_args;
 } invocation;
 
+typedef struct _function_declaration {
+	expression *args;
+	expression *body;
+} function_declaration;
+
 struct expression {
 	expression_type type;
 	int refs;
@@ -38,6 +43,7 @@ struct expression {
 		invocation *invocation;
 		linked_list *expr_list;
 		expression *deferred_expression;
+		function_declaration *function_declaration;
 	} operation;
 };
 
@@ -47,6 +53,12 @@ typedef struct deferred_expression {
 	hval *ctx;
 	expression *expr;
 } deferred_expression;
+
+typedef struct function_decl {
+	//hval *ctx;
+	//hval *args;
+	expression *body;
+} function_decl;
 
 struct hval {
 	type type;
@@ -58,6 +70,7 @@ struct hval {
 		linked_list *list;
 		deferred_expression deferred_expression;
 		native_function native_fn;
+		function_decl fn;
 	} value;
 	hash *members;
 	bool reachable;

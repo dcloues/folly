@@ -7,7 +7,7 @@
 #include "lexer_io.h"
 #include "str.h"
 
-typedef enum { identifier, number, string, assignment, list_start, list_end, hash_start, hash_end, delim, quote, dereference } token_type;
+typedef enum { identifier, number, string, assignment, list_start, list_end, hash_start, hash_end, delim, quote, dereference, fn_declaration } token_type;
 
 typedef union {
 	hstr *string;

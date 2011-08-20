@@ -13,6 +13,7 @@
 #include "log.h"
 #include "type.h"
 #include "ht.h"
+#include "smalloc.h"
 #include "str.h"
 
 /*typedef struct _loaded_file {*/
@@ -34,6 +35,7 @@ static expression *read_string(runtime *);
 static expression *read_list(runtime *);
 static expression *read_hash(runtime *);
 static expression *read_quoted(runtime *);
+static expression *read_function_declaration(runtime *rt, expression *args);
 
 static hval *runtime_evaluate_expression(runtime *, expression *, hval *);
 static hval *eval_prop_ref(runtime *, prop_ref *, hval *);
@@ -41,8 +43,10 @@ static hval *eval_prop_set(runtime *, prop_set *, hval *);
 static hval *eval_expr_hash_literal(runtime *, hash *, hval *);
 static hval *eval_expr_list(runtime *, linked_list *, hval *);
 static hval *eval_expr_list_literal(runtime *, expression *, hval *);
+static hval *eval_expr_function_declaration(runtime *, function_declaration *, hval *);
 static hval *eval_expr_invocation(runtime *, invocation *, hval *);
 static hval *eval_expr_folly_invocation(runtime *rt, hval *fn, hval *args, hval *context);
+static hval *eval_expr_function_args(runtime *rt, expression *expr, bool for_invocation, hval *context);
 static hval *eval_expr_deferred(runtime *, expression *, hval *);
 static hval *undefer(runtime *rt, hval *maybe_deferred);
 
@@ -348,6 +352,7 @@ expression *read_complete_expression(runtime *rt)
 {
 	expression *expr = NULL;
 	token_type tt = rt->current->type;
+	token *next;
 
 	switch (tt)
 	{
@@ -365,6 +370,10 @@ expression *read_complete_expression(runtime *rt)
 			break;
 		case list_start:
 			expr = read_list(rt);
+			next = runtime_peek_token(rt);
+			if (next && next->type == fn_declaration) {
+				expr = read_function_declaration(rt, expr);
+			}
 			break;
 		case quote:
 			expr = read_quoted(rt);
@@ -375,6 +384,21 @@ expression *read_complete_expression(runtime *rt)
 	}
 
 	return expr;
+}
+
+static expression *read_function_declaration(runtime *rt, expression *args) {
+	/*token *pointy = runtime_get_next_token(rt);*/
+	runtime_get_next_token(rt); // consume the ->
+	expect_token(runtime_current_token(rt), fn_declaration);
+	runtime_get_next_token(rt);
+	expect_token(runtime_current_token(rt), list_start);
+	expression *body = read_list(rt);
+
+	expression *fn = expr_create(expr_function_t);
+	fn->operation.function_declaration = smalloc(sizeof(function_declaration));
+	fn->operation.function_declaration->args = args;
+	fn->operation.function_declaration->body = body;
+	return fn;
 }
 
 expression *read_quoted(runtime *rt)
@@ -547,10 +571,68 @@ static hval *runtime_evaluate_expression(runtime *rt, expression *expr, hval *co
 			return eval_expr_invocation(rt, expr->operation.invocation, context);
 		case expr_deferred_t:
 			return eval_expr_deferred(rt, expr->operation.deferred_expression, context);
+		case expr_function_t:
+			return eval_expr_function_declaration(rt, expr->operation.function_declaration, context);
 		default:
 			hlog("Error: unknown expression type");
 			exit(1);
 	}
+}
+
+static hval *eval_expr_function_declaration(runtime *rt, function_declaration *decl, hval *context)
+{
+	fprintf(stderr, "evaluating function declaration\n");
+	hval *fn = hval_create(function_t, rt);
+	/*fn->value.fn.ctx = context;*/
+	/*fn->value.fn.args = eval_expr_function_args(rt, decl->args, context);*/
+	expression *expr = decl->body;
+	hval *args = eval_expr_function_args(rt, decl->args, false, context);
+	hval_hash_put(fn, FN_ARGS, args, rt->mem);
+	hval_hash_put(fn, FN_EXPR, eval_expr_deferred(rt, expr, context), rt->mem);
+	/*fn->value.fn.args = decl->body;*/
+
+	return fn;
+}
+
+static hval *eval_expr_function_args(runtime *rt, expression *expr, bool for_invocation, hval *context) {
+	hval *arglist = hval_list_create(rt);
+	mem_add_gc_root(rt->mem, arglist);
+	ll_node *arg_node = expr->operation.list_literal->head;
+	expression *arg_expr = NULL;
+	hval *arg = NULL;
+	hval *value = NULL;
+	prop_set *set = NULL;
+	while (arg_node) {
+		arg_expr = (expression *) arg_node->data;
+		arg = hval_hash_create(rt);
+		hval_list_insert_head(arglist, arg);
+		switch (arg_expr->type) {
+		case expr_prop_ref_t:
+			if (for_invocation) {
+				hval_hash_put(arg, VALUE, runtime_evaluate_expression(rt, arg_expr, context), rt->mem);
+			} else {
+				hval_hash_put(arg, NAME, hval_string_create(arg_expr->operation.prop_ref->name, rt), rt->mem);
+			}
+			break;
+		case expr_prop_set_t:
+			set = arg_expr->operation.prop_set;
+			hval_hash_put(arg, NAME, hval_string_create(set->ref->name, rt), rt->mem);
+			hval_hash_put(arg, VALUE, runtime_evaluate_expression(rt, set->value, context), rt->mem);
+			break;
+		default:
+			fprintf(stderr, "here we go\n");
+			value = runtime_evaluate_expression(rt, arg_expr, context);
+			fprintf(stderr, "Unnamed argument: %s\n", hval_to_string(value));
+			/*hval_hash_put(arg, VALUE, runtime_evaluate_expression(rt, arg_expr, context), rt->mem);*/
+			hval_hash_put(arg, VALUE, value, rt->mem);
+			value = NULL;
+			/*runtime_error("Unexpected argument");*/
+		}
+
+		arg_node = arg_node->next;
+	}
+
+	return arglist;
 }
 
 static hval *eval_expr_list(runtime *rt, linked_list *expr_list, hval *context)
@@ -674,13 +756,36 @@ static hval *eval_expr_invocation(runtime *rt, invocation *inv, hval *context)
 	{
 		return NULL;
 	}
-	hval *args = (inv->list_args != NULL)
-			? eval_expr_list_literal(rt, inv->list_args, context)
-			: eval_expr_hash_literal(rt, inv->hash_args->operation.hash_literal, context);
-	if (args == NULL)
-	{
-		printf("null args!\n");
-		exit(1);
+	/*hval *args = (inv->list_args != NULL)*/
+			/*? eval_expr_list_literal(rt, inv->list_args, context)*/
+			/*: eval_expr_hash_literal(rt, inv->hash_args->operation.hash_literal, context);*/
+
+	fprintf(stderr, "trying to invoke a function\n");
+	// coalesce the provided args and the defaults into a hash
+	// for function invocation, order is irrelevent
+	hval *in_args = eval_expr_function_args(rt, inv->list_args, true, context);
+	hval *args = NULL;
+	//hval_hash_create(rt);
+	if (fn->type == native_function_t) {
+		fprintf(stderr, "native function - no arg mangling\n");
+		// TODO support default args for native functions
+		args = in_args;
+	} else {
+		args = hval_hash_create(rt);
+		hval *default_args = hval_hash_get(fn, FN_ARGS, rt);
+		hval *vals[2] = {default_args, in_args};
+		hval *name = NULL;
+		hval *value = NULL;
+		for (int i = 0; i < 2; i++) {
+			printf("node: %d\n", i);
+			ll_node *node = vals[i]->value.list->head;
+			while (node) {
+				name = hval_hash_get((hval *) node->data, NAME, rt);
+				value = hval_hash_get((hval *) node->data, VALUE, rt);
+				hval_hash_put(args, name->value.str, value, rt->mem);
+				node = node->next;
+			}
+		}
 	}
 
 	return runtime_call_function(rt, fn, args, context);
@@ -821,10 +926,16 @@ static hval *native_print(runtime *rt, hval *self, hval *args)
 
 static hval *native_add(runtime *rt, hval *this, hval *args)
 {
+	fprintf(stderr, "native_add\n");
 	int sum = 0;
 	ll_node *current = args->value.list->head;
+	hval *wrapper = NULL, *item = NULL;
 	while (current) {
-		sum += ((hval *) current->data)->value.number;
+		wrapper = (hval *) current->data;
+		item = hval_hash_get(wrapper, VALUE, NULL);
+		fprintf(stderr, " + %d\n", item->value.number);
+		sum += item->value.number;
+		/*sum += ((hval *) current->data)->value.number;*/
 		current = current->next;
 	}
 

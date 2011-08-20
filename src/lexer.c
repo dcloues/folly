@@ -110,6 +110,8 @@ const char* token_type_string(token_type type)
 			return "hash_end";
 		case delim:
 			return "delim";
+		case fn_declaration:
+			return "->";
 		default:
 			return "[unknown]";
 	}
@@ -221,8 +223,14 @@ token *get_token_string(lexer_input *li, buffer *buf)
 token *get_token_identifier(lexer_input *li, buffer *buf)
 {
 	read_matching(li, buf, is_identifier);
-	token *token = token_create(identifier);
 	char *str = buffer_to_string(buf);
+	/*fprintf(stderr, "get_token_identifier: %s\n", str);*/
+	if (strcmp("->", str) == 0) {
+		free(str);
+		return token_create(fn_declaration);
+	}
+
+	token *token = token_create(identifier);
 	token->value.string = hstr_create(str);
 	free(str);
 

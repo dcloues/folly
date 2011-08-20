@@ -1,14 +1,13 @@
 
-#include "stdlib.h"
+#include <stdlib.h>
+#include "smalloc.h"
 #include "linked_list.h"
 
 linked_list *ll_create(void) {
-	linked_list *list = malloc(sizeof(linked_list));
-	if (list) {
-		list->size = 0;
-		list->head = NULL;
-		list->tail = NULL;
-	}
+	linked_list *list = smalloc(sizeof(linked_list));
+	list->size = 0;
+	list->head = NULL;
+	list->tail = NULL;
 
 	return list;
 }

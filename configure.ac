@@ -8,9 +8,11 @@ AC_CONFIG_HEADERS([config.h])
 
 AM_INIT_AUTOMAKE([-Wall -Werror foreign])
 
+: ${CFLAGS="-g -O0"}
+
 # Checks for programs.
-AC_PROG_CC([clang gcc])
-AC_PROG_CC_C99()
+AC_PROG_CC([clang gcc], [-O0])
+#AC_PROG_CC_C99([clang gcc], [-O0])
 
 # Checks for libraries.
 # FIXME: Replace `main' with a function in `-lncurses':

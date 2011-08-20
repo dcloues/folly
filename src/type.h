@@ -19,6 +19,8 @@ hstr *NUMBER;
 hstr *BOOLEAN;
 hstr *TRUE;
 hstr *FALSE;
+hstr *NAME;
+hstr *VALUE;
 
 hval *hval_create(type t, runtime *rt);
 void hval_retain(hval *hv);
