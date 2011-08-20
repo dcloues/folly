@@ -28,5 +28,6 @@ int ll_remove(linked_list *list, const void *what, const int limit);
 //void ll_remove_all(linked_list *list, filter element_filter);
 ll_node *ll_search(linked_list *list, void *seek, comparator comp);
 ll_node *ll_search_simple(linked_list *list, void *seek);
+#define LL_FOREACH(ll, nodename) for(ll_node *nodename = ll->head; nodename != NULL; nodename = nodename->next)
 
 #endif

@@ -1,4 +1,5 @@
-fib: fn({num: 0} `(
+fib: (num: 0) -> (
+    io.print("fib:" num)
     i: 1
     n2: 0
     n1: 1
@@ -16,18 +17,6 @@ fib: fn({num: 0} `(
             current
         ))
     )
-))
+)
 
-io.print(fib{num: 40})
-io.print(fib{num: 40})
-io.print(fib{num: 40})
-io.print(fib{num: 40})
-io.print(fib{num: 40})
-io.print(fib{num: 40})
-io.print(fib{num: 40})
-io.print(fib{num: 40})
-io.print(fib{num: 40})
-io.print(fib{num: 40})
-io.print(fib{num: 40})
-io.print(fib{num: 40})
-io.print(fib{num: 40})
+io.print(fib(40))

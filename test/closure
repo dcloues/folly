@@ -2,8 +2,5 @@ make_adder: (a) -> (
     (b) -> (+(a b))
 )
 
-a5: make_adder(a: 5)
-a10: make_adder(a: 10)
-io.print(a5(b: 10))
-io.print(a10(b: 10))
-io.print(a5(b: 15))
+a5: make_adder()
+io.print(a5(10))

@@ -601,7 +601,7 @@ static hval *eval_expr_function_args(runtime *rt, expression *expr, bool for_inv
 	while (arg_node) {
 		arg_expr = (expression *) arg_node->data;
 		arg = hval_hash_create(rt);
-		hval_list_insert_head(arglist, arg);
+		hval_list_insert_tail(arglist, arg);
 		switch (arg_expr->type) {
 		case expr_prop_ref_t:
 			if (for_invocation) {
@@ -742,7 +742,6 @@ static hval *get_prop_ref_site(runtime *rt, prop_ref *ref, hval *context)
 
 static hval *eval_expr_invocation(runtime *rt, invocation *inv, hval *context)
 {
-	hlog("eval_expr_invocation\n");
 	hval *fn = runtime_evaluate_expression(rt, inv->function, context);
 	if (fn == NULL)
 	{
@@ -754,6 +753,8 @@ static hval *eval_expr_invocation(runtime *rt, invocation *inv, hval *context)
 	hval *in_args = eval_expr_function_args(rt, inv->list_args, true, context);
 	hval *args = NULL;
 	if (fn->type == native_function_t) {
+		// Native functions can manually extract named functions,
+		// but default values aren't supported yet.
 		args = in_args;
 	} else {
 		args = hval_hash_create(rt);
@@ -761,14 +762,42 @@ static hval *eval_expr_invocation(runtime *rt, invocation *inv, hval *context)
 		hval *vals[2] = {default_args, in_args};
 		hval *name = NULL;
 		hval *value = NULL;
-		for (int i = 0; i < 2; i++) {
-			ll_node *node = vals[i]->value.list->head;
-			while (node) {
-				name = hval_hash_get((hval *) node->data, NAME, rt);
-				value = hval_hash_get((hval *) node->data, VALUE, rt);
+
+		ll_node *node = in_args->value.list->head;
+		linked_list *unnamed = ll_create();
+		while (node) {
+			value = runtime_get_arg_value(node);
+			name = runtime_get_arg_name(node);
+			if (name) {
 				hval_hash_put(args, name->value.str, value, rt->mem);
-				node = node->next;
+			} else {
+				ll_insert_tail(unnamed, value);
 			}
+			node = node->next;
+		}
+
+		node = default_args->value.list->head;
+		ll_node *unnamed_node = unnamed->head;
+		LL_FOREACH(default_args->value.list, defnode) {
+			name = runtime_get_arg_name(defnode);
+			value = hval_hash_get(args, name->value.str, rt);
+			// if a named argument was already bound for this, skip it
+			if (value) continue;
+
+			// otherwise, if there are any remaining unbound args, consume one
+			if (unnamed_node) {
+				value = (hval *) unnamed_node->data;
+				unnamed_node = unnamed_node->next;
+				ll_remove_first(unnamed, value);
+			} else {
+				// or just use the default, which may be null
+				value = runtime_get_arg_value(defnode);
+			}
+
+			if (value == NULL) {
+				runtime_error("No value provided for parameter %s\n", name->value.str->str);
+			}
+			hval_hash_put(args, name->value.str, value, rt->mem);
 		}
 	}
 
