@@ -810,6 +810,8 @@ hval *runtime_build_function_arguments(runtime *rt, hval *fn, hval *in_args) {
 			}
 			hval_hash_put(args, name->value.str, value, rt->mem);
 		}
+
+		ll_destroy(unnamed, NULL, NULL);
 	}
 
 	return args;

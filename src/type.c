@@ -521,6 +521,11 @@ void expr_destroy(expression *expr, bool destroy_hvals, mem *m)
 		case expr_deferred_t:
 			expr_destroy(expr->operation.deferred_expression, destroy_hvals, m);
 			break;
+		case expr_function_t:
+			expr_destroy(expr->operation.function_declaration->args, destroy_hvals, m);
+			expr_destroy(expr->operation.function_declaration->body, destroy_hvals, m);
+			free(expr->operation.function_declaration);
+			break;
 		default:
 			hlog("ERROR: unexpected type passed to expr_destroy\n");
 			break;
