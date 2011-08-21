@@ -583,12 +583,13 @@ static hval *runtime_evaluate_expression(runtime *rt, expression *expr, hval *co
 
 static hval *eval_expr_function_declaration(runtime *rt, function_declaration *decl, hval *context)
 {
-	/*hval *fn = hval_create(function_t, rt);*/
 	hval *fn = hval_hash_create(rt);
 	expression *expr = decl->body;
 	hval *args = eval_expr_function_args(rt, decl->args, false, context);
 	hval_hash_put(fn, FN_ARGS, args, rt->mem);
-	hval_hash_put(fn, FN_EXPR, eval_expr_deferred(rt, expr, context), rt->mem);
+	mem_remove_gc_root(rt->mem, args);
+	hval *body = eval_expr_deferred(rt, expr, context);
+	hval_hash_put(fn, FN_EXPR, body, rt->mem);
 
 	return fn;
 }
@@ -601,9 +602,11 @@ static hval *eval_expr_function_args(runtime *rt, expression *expr, bool for_inv
 	hval *arg = NULL;
 	hval *value = NULL;
 	prop_set *set = NULL;
+	int i = 0;
 	while (arg_node) {
 		arg_expr = (expression *) arg_node->data;
 		arg = hval_hash_create(rt);
+		/*fprintf(stderr, "  created arg %d: %p\n", i, arg);*/
 		hval_list_insert_tail(arglist, arg);
 		switch (arg_expr->type) {
 		case expr_prop_ref_t:
@@ -625,8 +628,10 @@ static hval *eval_expr_function_args(runtime *rt, expression *expr, bool for_inv
 		}
 
 		arg_node = arg_node->next;
+		++i;
 	}
 
+	/*mem_add_gc_root(rt->mem, arglist);*/
 	return arglist;
 }
 
@@ -747,6 +752,8 @@ static hval *get_prop_ref_site(runtime *rt, prop_ref *ref, hval *context)
 static hval *eval_expr_invocation(runtime *rt, invocation *inv, hval *context)
 {
 	hval *fn = runtime_evaluate_expression(rt, inv->function, context);
+	/*fprintf(stderr, "================== eval_expr_invocation\n");*/
+	mem_add_gc_root(rt->mem, fn);
 	if (fn == NULL)
 	{
 		return NULL;
@@ -755,12 +762,20 @@ static hval *eval_expr_invocation(runtime *rt, invocation *inv, hval *context)
 	// coalesce the provided args and the defaults into a hash
 	// for function invocation, order is irrelevent
 	hval *in_args = eval_expr_function_args(rt, inv->list_args, true, context);
+	/*mem_add_gc_root(rt->mem, in_args);*/
 	hval *args = runtime_build_function_arguments(rt, fn, in_args);
-	return runtime_call_function(rt, fn, args, context);
+	mem_add_gc_root(rt->mem, args);
+
+	hval *result = runtime_call_function(rt, fn, args, context);
+	mem_remove_gc_root(rt->mem, in_args);
+	mem_remove_gc_root(rt->mem, args);
+	mem_remove_gc_root(rt->mem, fn);
+	return result;
 }
 
 hval *runtime_build_function_arguments(runtime *rt, hval *fn, hval *in_args) {
 	hval *args = NULL;
+	/*mem_add_gc_root(rt->mem, fn);*/
 	if (fn->type == native_function_t) {
 		// Native functions can manually extract named functions,
 		// but default values aren't supported yet.
@@ -787,6 +802,7 @@ hval *runtime_build_function_arguments(runtime *rt, hval *fn, hval *in_args) {
 			}
 		}
 
+		/*fprintf(stderr, "++++++++++++++++++ fn: %p\tdefault_args: %p\n", fn, default_args);*/
 		node = default_args->value.list->head;
 		ll_node *unnamed_node = unnamed->head;
 		LL_FOREACH(default_args->value.list, defnode) {
@@ -813,6 +829,7 @@ hval *runtime_build_function_arguments(runtime *rt, hval *fn, hval *in_args) {
 
 		ll_destroy(unnamed, NULL, NULL);
 	}
+	/*mem_remove_gc_root(rt->mem, fn);*/
 
 	return args;
 }
@@ -1113,7 +1130,9 @@ static hval *native_cond(runtime *rt, hval *this, hval *args)
 	ll_node *test_node = args->value.list->head;
 	while (test_node) {
 		/*hval *cond_hval = (hval *) test_node->data;*/
+		/*fprintf(stderr, " getting arg value from %p %p\n", test_node, test_node->data);*/
 		hval *cond_hval = runtime_get_arg_value(test_node);
+		/*fprintf(stderr, " test_node: %p %p; cond_hval: %p\n", test_node, test_node->data, cond_hval);*/
 		linked_list *cond_pair = cond_hval->value.list;
 
 		hval *test = undefer(rt, (hval *) cond_pair->head->data);
@@ -1125,6 +1144,7 @@ static hval *native_cond(runtime *rt, hval *this, hval *args)
 
 		test_node = test_node->next;
 	}
+	fprintf(stderr, "-- native_cond %p done", args);
 	
 	return NULL;
 }

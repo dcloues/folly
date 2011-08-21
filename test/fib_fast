@@ -19,4 +19,4 @@ fib: (num: 0) -> (
     )
 )
 
-io.print(fib(40))
+io.print(fib(10))

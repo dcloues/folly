@@ -5,28 +5,30 @@
 #include "data.h"
 
 typedef struct _chunk {
-	int size;
-	hval *free_hint;
+	int count;
+	size_t element_size;
+	size_t raw_size;
+	char *free_hint;
 	int allocated;
 	linked_list *free_list;
-	hval contents[];
+	char base[];
 } chunk;
+
+typedef struct _chunk_list {
+	chunk **chunks;
+	int num_chunks;
+} chunk_list;
 
 typedef struct {
 	linked_list *gc_roots;
-	chunk **chunks;
-	int num_chunks;
-	//hval *heap;
-	//int heap_size;
-	//int free_hint;
+	chunk_list chunks[8];
 	bool gc;
 } mem;
-
 
 mem *mem_create();
 void mem_destroy(mem *);
 
-hval *mem_alloc(mem *m);
+hval *mem_alloc(size_t size, mem *m);
 void mem_free(mem *m, hval *v);
 void mem_add_gc_root(mem *m, hval *root);
 void mem_remove_gc_root(mem *m, hval *root);

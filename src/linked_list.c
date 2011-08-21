@@ -78,6 +78,7 @@ ll_node *ll_search_simple(linked_list *list, void *seek) {
 		if (node->data == seek) {
 			return node;
 		}
+		node = node->next;
 	}
 
 	return NULL;

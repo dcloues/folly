@@ -1,3 +1,4 @@
+#include <assert.h>
 #include <stdbool.h>
 #include <stdlib.h>
 #include <stdio.h>
@@ -10,21 +11,32 @@
 
 #define DEFAULT_CHUNK_SIZE 512
 
+#if GC_REPORTING
+#define GC_LOG(...) (fprintf(stderr, __VA_ARGS__))
+#else
+#define GC_LOG(...)
+#endif
+
 void mark(hval *hv);
 void sweep(mem *m);
-chunk *chunk_create(int size);
-static hval *mem_alloc_helper(mem *m, bool run_gc);
+chunk *chunk_create(size_t element_size, int count);
+static hval *mem_alloc_helper(size_t size, mem *m, bool run_gc);
 
-chunk *chunk_create(int size)
+chunk *chunk_create(size_t element_size, int count)
 {
-	chunk *chnk = smalloc(sizeof(chunk) + size * sizeof(hval));
-	chnk->size = size;
-	chnk->free_hint = chnk->contents;
+	GC_LOG("chunk_create: %ld * %d = %ld\n", element_size, count, element_size * count);
+	chunk *chnk = smalloc(sizeof(chunk) + count * element_size);
+	chnk->count = count;
+	chnk->element_size = element_size;
+	chnk->raw_size = count * element_size;
+	chnk->free_hint = chnk->base;
 	chnk->allocated = 0;
 	chnk->free_list = ll_create();
-	for (hval *mark_free = chnk->contents; mark_free < chnk->contents + chnk->size; mark_free++) {
-		mark_free->type = free_t;
-		mark_free->members = NULL;
+	hval *hv;
+	for (char *ptr = chnk->base, *max = chnk->base + count * element_size; ptr < max; ptr += element_size) {
+		hv = (hval *) ptr;
+		hv->type = free_t;
+		hv->members = NULL;
 	}
 	
 	return chnk;
@@ -38,43 +50,51 @@ mem *mem_create() {
 	}
 
 	m->gc_roots = ll_create();
-	m->chunks = smalloc(sizeof(chunk *));
-	m->num_chunks = 1;
-	m->chunks[0] = chunk_create(DEFAULT_CHUNK_SIZE);
-
+	for (int i=0; i < sizeof(m->chunks) / sizeof(chunk_list); i++) {
+		m->chunks[i].num_chunks = 0;
+		m->chunks[i].chunks = NULL;
+	}
 	m->gc = false;
-	
 	return m;
 }
 
 void mem_destroy(mem *mem) {
 	/*for (chunk *chnk = mem->chunks + mem->num_chunks - 1; chnk >= mem->chunks; chnk--) {*/
-	for (int i = 0; i < mem->num_chunks; i++) {
-		chunk *chnk = mem->chunks[i];
-		for (hval *hv = chnk->contents + chnk->size - 1; hv >= chnk->contents; hv--) {
-			if (hv->type != free_t) {
-				hval_destroy(hv, mem, false);
+	for (int i = 0; i < sizeof(mem->chunks) / sizeof(chunk_list); i++) {
+		chunk_list *chunk_list = mem->chunks + i;
+		chunk *chnk = NULL;
+		for (int j = 0; j < chunk_list->num_chunks; j++) {
+			chnk = chunk_list->chunks[j];
+			hval *hv = NULL;
+			for (char *pt = chnk->base + chnk->raw_size - chnk->element_size; pt >= chnk->base; pt -= chnk->element_size) {
+				hv = (hval *) pt;
+				if (hv->type != free_t) {
+					hval_destroy(hv, mem, false);
+				}
+
+				if (hv->members != NULL) {
+					hash_destroy(hv->members, NULL, NULL, NULL, NULL);
+					hv->members = NULL;
+				}
 			}
 
-			if (hv->members != NULL) {
-				hash_destroy(hv->members, NULL, NULL, NULL, NULL);
-				/*free(hv->members);*/
-				hv->members = NULL;
-			}
+			ll_destroy(chnk->free_list, NULL, NULL);
+			free(chnk);
 		}
 
-		ll_destroy(chnk->free_list, NULL, NULL);
-		free(chnk);
+		if (chunk_list->num_chunks) {
+			free(chunk_list->chunks);
+		}
 	}
 
-	free(mem->chunks);
+	/*free(mem->chunks);*/
 	ll_destroy(mem->gc_roots, NULL, NULL);
 	free(mem);
 }
 
 hval *chunk_get_free(chunk *chnk)
 {
-	if (chnk->allocated == chnk->size) {
+	if (chnk->allocated == chnk->count) {
 		return NULL;
 	}
 
@@ -86,9 +106,9 @@ hval *chunk_get_free(chunk *chnk)
 		return hv;
 	}
 
-	if (chnk->free_hint < chnk->contents + chnk->size && chnk->free_hint->type == free_t) {
-		hval *hv = chnk->free_hint;
-		chnk->free_hint++;
+	if (chnk->free_hint < chnk->base + chnk->raw_size - chnk->element_size && ((hval *)chnk->free_hint)->type == free_t) {
+		hval *hv = (hval *) chnk->free_hint;
+		chnk->free_hint += chnk->element_size;
 		chnk->allocated++;
 		return hv;
 	}
@@ -96,15 +116,25 @@ hval *chunk_get_free(chunk *chnk)
 	return NULL;
 }
 
-hval *mem_alloc(mem *m) {
-	return mem_alloc_helper(m, true);
+hval *mem_alloc(size_t size, mem *m) {
+	hval *p = mem_alloc_helper(size, m, true);
+	GC_LOG("mem_alloc created %p (size %ld)\n", p, size);
+	return p;
 }
 
-static hval *mem_alloc_helper(mem *m, bool run_gc)
+static hval *mem_alloc_helper(size_t size, mem *m, bool run_gc)
 {
+	unsigned int bucket = 0;
+	unsigned int bucket_size = 8;
+	while (bucket_size < size) {
+		bucket++;
+		bucket_size = bucket_size << 1;
+	}
+
+	chunk_list *chunk_list = m->chunks + bucket;
 	hval *hv = NULL;
-	for (int i=m->num_chunks - 1; i >= 0; i--) {
-		chunk *chnk = m->chunks[i];
+	for (int i=chunk_list->num_chunks - 1; i >= 0; i--) {
+		chunk *chnk = chunk_list->chunks[i];
 		hv = chunk_get_free(chnk);
 		if (hv) {
 			return hv;
@@ -113,7 +143,7 @@ static hval *mem_alloc_helper(mem *m, bool run_gc)
 
 	if (run_gc) {
 		gc(m);
-		return mem_alloc_helper(m, false);
+		return mem_alloc_helper(size, m, false);
 	}
 
 #if GC_REPORTING
@@ -121,31 +151,45 @@ static hval *mem_alloc_helper(mem *m, bool run_gc)
 	debug_heap_output(m);
 #endif
 
-	m->chunks = realloc(m->chunks, sizeof(chunk *) * (m->num_chunks + 1));
-	m->chunks[m->num_chunks] = chunk_create(DEFAULT_CHUNK_SIZE);
-	hv = chunk_get_free(m->chunks[m->num_chunks]);
+	if (chunk_list->chunks) {
+#if GC_REPORTING
+		printf("reallocating existing chunks\n");
+#endif
+		chunk_list->chunks = realloc(chunk_list->chunks, sizeof(chunk *) * (chunk_list->num_chunks + 1));
+	} else {
+		chunk_list->chunks = malloc(sizeof(chunk *));
+	}
+
+	chunk_list->chunks[chunk_list->num_chunks] = chunk_create(bucket_size, DEFAULT_CHUNK_SIZE);
+	hv = chunk_get_free(chunk_list->chunks[chunk_list->num_chunks]);
 	if (hv == NULL) {
 		exit(2);
 	}
-	m->num_chunks++;
+	chunk_list->num_chunks++;
+#if GC_REPORTING
+	printf("grew heap:\n");
+	debug_heap_output(m);
+#endif
 	return hv;
 }
 
 void mem_free(mem *m, hval *hv) {
 	// TODO consider resetting the free hint?
+	GC_LOG("mem_free: %p\n", hv);
 	hv->type = free_t;
+	/*assert(ll_search_simple(m->gc_roots, hv) == NULL);*/
 }
 
 void mem_add_gc_root(mem *m, hval *root) {
-	hlog("add_gc_root: %p\n", root);
+	/*hlog("add_gc_root: %p\n", root);*/
+	ll_node *node = ll_search_simple(m->gc_roots, root);
+
 	ll_insert_head(m->gc_roots, root);
 }
 
 void mem_remove_gc_root(mem *m, hval *root) {
-	hlog("remove_gc_root: %p\n", root);
-	if (-1 == ll_remove_first(m->gc_roots, root)) {
-		hlog("ERROR: Unable to remove gc root\n");
-	}
+	int index = ll_remove_first(m->gc_roots, root);
+	assert(index != -1);
 }
 
 void gc_with_temp_root(mem *m, hval *root) {
@@ -160,10 +204,12 @@ void gc_with_temp_root(mem *m, hval *root) {
 
 void gc(mem *m) {
 	m->gc = true;
-	for (int i = 0; i < m->num_chunks; i++) {
-		chunk *chunk = m->chunks[i];
-		for (hval *chunk_val = chunk->contents, *max = chunk->contents + chunk->size; chunk_val < max; chunk_val++) {
-			chunk_val->reachable = false;
+	for (int i = 0; i < sizeof(m->chunks) / sizeof(chunk_list); i++) {
+		for (int j = 0; j < m->chunks[i].num_chunks; j++) {
+			chunk *chunk = m->chunks[i].chunks[j];
+			for (char *pt = chunk->base, *max = chunk->base + chunk->raw_size; pt < max; pt += chunk->element_size) {
+				((hval *) pt)->reachable = false;
+			}
 		}
 	}
 
@@ -172,10 +218,6 @@ void gc(mem *m) {
 #endif
 	ll_node *node = m->gc_roots->head;
 	while (node) {
-#if GC_REPORTING
-		fprintf(stderr, "gc root: %p\n", node->data);
-#endif
-		/*hlog("gc root: %p\n", node->data);*/
 		mark(node->data);
 		node = node->next;
 	}
@@ -185,8 +227,6 @@ void gc(mem *m) {
 }
 
 void mark(hval *hv) {
-	/*hlog("mark: %p\n", hv);*/
-
 	if (!hv || hv->reachable) {
 		return;
 	}
@@ -203,6 +243,7 @@ void mark(hval *hv) {
 	}
 
 	if (hv->type == list_t) {
+		assert(hv->value.list != NULL);
 		ll_node *node = hv->value.list->head;
 		while (node) {
 			mark((hval *) node->data);
@@ -213,17 +254,20 @@ void mark(hval *hv) {
 
 void sweep(mem *mem)
 {
-	hlog("sweeping\n");
-	for (int i = 0; i < mem->num_chunks; i++) {
-		chunk *chnk = mem->chunks[i];
-		/*for (hval *hv = chnk->contents; hv < chnk->contents + chnk->size; hv++) {*/
-		for (hval *hv = chnk->contents + chnk->size - 1; hv >= chnk->contents; --hv) {
-			if (hv->type != free_t && !hv->reachable) {
-				hval_destroy(hv, mem, false);
-				hv->type = free_t;
-				chnk->allocated--;
-				ll_insert_head(chnk->free_list, hv);
-				/*chnk->free_hint = hv;*/
+	for (int i = 0; i < sizeof(mem->chunks) / sizeof(chunk_list); i++) {
+		for (int j=0; j < mem->chunks[i].num_chunks; j++) {
+			chunk *chnk = mem->chunks[i].chunks[j];
+			GC_LOG("===== SWEEP CHUNK %d %p\n", j, chnk);
+			hval *hv = NULL;
+			for (char *pt = chnk->base, *max = chnk->base + chnk->raw_size; pt < max; pt += chnk->element_size) {
+				hv = (hval *) pt;
+				if (hv->type != free_t && !hv->reachable) {
+					GC_LOG("freeing unreachable %p\n", hv);
+					hval_destroy(hv, mem, false);
+					hv->type = free_t;
+					chnk->allocated--;
+					ll_insert_head(chnk->free_list, hv);
+				}
 			}
 		}
 	}
@@ -231,10 +275,17 @@ void sweep(mem *mem)
 
 void debug_heap_output(mem *mem)
 {
-	printf("heap: %d chunks\n", mem->num_chunks);
+	fprintf(stderr, "Heap status:\n");
 	int total = 0;
-	for (int i = 0; i < mem->num_chunks; i++) {
-		chunk *chnk = mem->chunks[i];
-		printf(" chunk %p: %6d / %6d\n", chnk, chnk->allocated, chnk->size);
+	size_t element_size = 8;
+	for (int i = 0; i < sizeof(mem->chunks) / sizeof(chunk_list); i++) {
+		fprintf(stderr, " %8ld-byte elements: %d\n", element_size, mem->chunks[i].num_chunks);
+		for (int j = 0; j < mem->chunks[i].num_chunks; j++) {
+			chunk *chnk = mem->chunks[i].chunks[j];
+			printf("  chunk %p: %6d / %6d\n", chnk, chnk->allocated, chnk->count);
+		}
+
+		element_size = element_size << 1;
 	}
 }
+

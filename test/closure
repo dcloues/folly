@@ -2,5 +2,5 @@ make_adder: (a) -> (
     (b) -> (+(a b))
 )
 
-a5: make_adder()
+a5: make_adder(5)
 io.print(a5(10))

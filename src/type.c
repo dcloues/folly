@@ -104,6 +104,7 @@ void hval_clone_hash(hval *src, hval *dest, runtime *rt) {
 		hval *value = iter->current_value;
 
 		if (value && hval_is_callable(value) && (hval_get_self(value) == src || hval_get_self(value) == NULL)) {
+			fprintf(stderr, "bind func %p; default args %p\n", value, hval_hash_get(value, FN_ARGS, rt));
 			value = hval_clone(value, rt);
 			hval_bind_function(value, dest, rt->mem);
 		}
@@ -358,7 +359,7 @@ hval *hval_create(type hval_type, runtime *rt)
 #if HVAL_STATS
 	hval_create_count++;
 #endif
-	hval *hv = mem_alloc(rt->mem);
+	hval *hv = mem_alloc(sizeof(hval), rt->mem);
 	if (hv->members == NULL) {
 		hv->members = hash_create((hash_function) hash_hstr, (key_comparator) hstr_comparator);
 #ifdef HVAL_STATS
