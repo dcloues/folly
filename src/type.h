@@ -1,14 +1,14 @@
-#ifndef TYPE_H
-#define TYPE_H
-
 #include <stdbool.h>
 #include "config.h"
 #include "linked_list.h"
 #include "data.h"
 #include "ht.h"
-#include "mm.h"
 #include "str.h"
 #include "runtime.h"
+
+#ifndef TYPE_H
+#define TYPE_H
+
 
 hstr *FN_ARGS;
 hstr *FN_EXPR;

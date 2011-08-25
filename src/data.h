@@ -8,6 +8,7 @@ typedef enum { free_t, string_t, number_t, hash_t, list_t, deferred_expression_t
 typedef enum { expr_prop_ref_t, expr_prop_set_t, expr_invocation_t, expr_list_literal_t, expr_hash_literal_t, expr_primitive_t, expr_list_t, expr_deferred_t, expr_function_t } expression_type;
 
 typedef struct hval hval;
+typedef struct mem mem;
 typedef struct expression expression;
 
 typedef struct prop_ref {
@@ -47,7 +48,7 @@ struct expression {
 	} operation;
 };
 
-typedef hval *(*native_function)(void *rt, hval *this, hval *args);
+typedef hval *(*native_function)(hval *this, hval *args);
 
 typedef struct deferred_expression {
 	hval *ctx;
@@ -74,6 +75,42 @@ struct hval {
 	} value;
 	hash *members;
 	bool reachable;
+};
+
+typedef struct {
+	hval *top_level;
+	hval *last_result;
+	mem *mem;
+	hval *primitive_pool;
+	hval *object_root;
+
+	linked_list *loaded_modules;
+} runtime;
+
+typedef struct _native_function_spec {
+	char *path;
+	native_function function;
+} native_function_spec;
+
+typedef struct _chunk {
+	int count;
+	size_t element_size;
+	size_t raw_size;
+	char *free_hint;
+	int allocated;
+	linked_list *free_list;
+	char base[];
+} chunk;
+
+typedef struct _chunk_list {
+	chunk **chunks;
+	int num_chunks;
+} chunk_list;
+
+struct mem {
+	linked_list *gc_roots;
+	chunk_list chunks[8];
+	bool gc;
 };
 
 #endif

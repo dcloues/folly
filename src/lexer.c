@@ -6,6 +6,7 @@
 #include "lexer_io.h"
 #include "log.h"
 #include "buffer.h"
+#include "smalloc.h"
 
 size_t token_string_size(token *token);
 void read_matching(lexer_input *li, buffer *buf, bool (*matcher)(char, buffer*));
@@ -379,4 +380,59 @@ inline bool is_quote(const char c, buffer *buffer)
 inline bool is_dereference(const char c, buffer *buffer)
 {
 	return c == '.';
+}
+
+
+lexer *lexer_create(lexer_input *input)
+{
+	lexer *l = smalloc(sizeof(lexer));
+
+	l->input = input;
+	l->current = l->peek = NULL;
+
+	return l;
+}
+void lexer_destroy(lexer *l, bool destroy_input)
+{
+	if (destroy_input) {
+		lexer_input_destroy(l->input);
+		l->input = NULL;
+	}
+
+	l->current = l->peek = NULL;
+	free(l);
+}
+
+token *lexer_get_next_token(lexer *l)
+{
+	if (l->current) {
+		token_destroy(l->current, NULL);
+	}
+
+	token *t = NULL;
+	if (l->peek) {
+		t = l->peek;
+		l->peek = NULL;
+	} else {
+		t = get_next_token(l->input);
+	}
+
+	l->current = t;
+	/*fprintf(stderr, "token: %s\n", t ? token_type_string(t->type) : "NULL");*/
+	return t;
+}
+
+token *lexer_current_token(lexer *l)
+{
+	return l->current;
+}
+
+token *lexer_peek_token(lexer *l)
+{
+	if (!l->peek) {
+		l->peek = get_next_token(l->input);
+	}
+
+	/*fprintf(stderr, "lexer_peek_token: %s\n", l->peek ? token_type_string(l->peek->type) : "NULL");*/
+	return l->peek;
 }

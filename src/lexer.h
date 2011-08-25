@@ -25,6 +25,12 @@ typedef struct {
 	token *(*read_token)(lexer_input *li, buffer *);
 } rule;
 
+typedef struct _lexer {
+	lexer_input *input;
+	token *current;
+	token *peek;
+} lexer;
+
 #define token_string(t) (t->value.string)
 
 const char* token_type_string_token(token *token);
@@ -35,5 +41,11 @@ token* get_next_token(lexer_input *li);
 token* get_token_number(lexer_input *li);
 token *token_create(token_type type);
 void token_destroy(token *t, void *context);
+
+lexer *lexer_create(lexer_input *input);
+void lexer_destroy(lexer *, bool destroy_input);
+token *lexer_get_next_token(lexer *);
+token *lexer_current_token(lexer *);
+token *lexer_peek_token(lexer *);
 
 #endif

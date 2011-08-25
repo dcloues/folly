@@ -1,11 +1,13 @@
+#ifndef RUNTIME_H
+#define RUNTIME_H
+
 #include "type.h"
 #include "lexer.h"
 #include "mm.h"
 #include "string.h"
 
-#ifndef RUNTIME_H
-#define RUNTIME_H
 
+/*
 typedef struct {
 	hval *top_level;
 	hval *last_result;
@@ -23,6 +25,9 @@ typedef struct _native_function_spec {
 	char *path;
 	native_function function;
 } native_function_spec;
+*/
+
+runtime *__current_runtime;
 
 runtime *runtime_create();
 void runtime_destroy();
@@ -40,5 +45,6 @@ hval *runtime_build_function_arguments(runtime *runtime, hval *fn, hval *in_args
 #define runtime_get_arg_value(lln) (hval_hash_get(((hval *)lln->data), VALUE, NULL))
 #define runtime_get_arg_name(lln) (hval_hash_get(((hval *)lln->data), NAME, NULL))
 
+#define CURRENT_RUNTIME __current_runtime
 #endif
 

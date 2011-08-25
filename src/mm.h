@@ -4,27 +4,6 @@
 #include "linked_list.h"
 #include "data.h"
 
-typedef struct _chunk {
-	int count;
-	size_t element_size;
-	size_t raw_size;
-	char *free_hint;
-	int allocated;
-	linked_list *free_list;
-	char base[];
-} chunk;
-
-typedef struct _chunk_list {
-	chunk **chunks;
-	int num_chunks;
-} chunk_list;
-
-typedef struct {
-	linked_list *gc_roots;
-	chunk_list chunks[8];
-	bool gc;
-} mem;
-
 mem *mem_create();
 void mem_destroy(mem *);
 

@@ -379,6 +379,12 @@ hval *hval_create(type hval_type, runtime *rt)
 	return hv;
 }
 
+hval *hval_create_custom(type hval_type, size_t *size, runtime *rt)
+{
+	fprintf(stderr, "hval_create_custom not implemented\n");
+	exit(1);
+}
+
 void hval_retain(hval *hv)
 {
 	hv->refs++;

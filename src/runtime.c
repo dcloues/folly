@@ -16,26 +16,20 @@
 #include "smalloc.h"
 #include "str.h"
 
-/*typedef struct _loaded_file {*/
-	/*expression *ast;*/
-/*}*/
-
-expression *runtime_analyze(runtime *);
-token *runtime_peek_token(runtime *runtime);
-token *runtime_get_next_token(runtime *runtime);
+expression *runtime_analyze(runtime *, lexer *);
 static void expect_token(token *t, type token_type);
 static void register_top_level(runtime *);
 static void register_builtin(runtime *, hval *, char *, hval *, bool);
 static void register_builtin_r(runtime *, hval *, char *, hval *);
 
-static expression *read_complete_expression(runtime *);
-static expression *read_identifier(runtime *);
-static expression *read_number(runtime *);
-static expression *read_string(runtime *);
-static expression *read_list(runtime *);
-static expression *read_hash(runtime *);
-static expression *read_quoted(runtime *);
-static expression *read_function_declaration(runtime *rt, expression *args);
+static expression *read_complete_expression(lexer *);
+static expression *read_identifier(lexer *);
+static expression *read_number(lexer *);
+static expression *read_string(lexer *);
+static expression *read_list(lexer *);
+static expression *read_hash(lexer *);
+static expression *read_quoted(lexer *);
+static expression *read_function_declaration(lexer *rt, expression *args);
 
 static hval *runtime_evaluate_expression(runtime *, expression *, hval *);
 static hval *eval_prop_ref(runtime *, prop_ref *, hval *);
@@ -52,7 +46,7 @@ static hval *undefer(runtime *rt, hval *maybe_deferred);
 
 static hval *get_prop_ref_site(runtime *, prop_ref *, hval *);
 
-#define NATIVE_FUNCTION(name) hval *name(runtime *rt, hval *this, hval *args)
+#define NATIVE_FUNCTION(name) hval *name(hval *this, hval *args)
 
 void runtime_extract_arg_list(runtime *rt, hval *args, ...);
 
@@ -83,7 +77,7 @@ static NATIVE_FUNCTION(native_string_concat);
 
 static NATIVE_FUNCTION(native_show_heap);
 
-#define runtime_current_token(rt) (rt->current)
+#define lexer_current_token(rt) (rt->current)
 #define runtime_error(...) fprintf(stderr, __VA_ARGS__); exit(1);
 typedef void (*top_level_initializer)(runtime *);
 
@@ -131,10 +125,7 @@ void runtime_destroy_globals()
 runtime *runtime_create()
 {
 	runtime *r = malloc(sizeof(runtime));
-	r->current = NULL;
 	r->mem = mem_create();
-	r->peek = NULL;
-	r->current = NULL;
 	r->loaded_modules = NULL;
 
 	r->object_root = NULL;
@@ -271,15 +262,15 @@ static void register_builtin(runtime *rt, hval *site, char *name, hval *value, b
 
 hval *runtime_exec_one(runtime *runtime, lexer_input *input, bool *terminated)
 {
-	runtime->input = input;
-	token *t = runtime_get_next_token(runtime);
+	lexer *lexer = lexer_create(input);
+	token *t = lexer_get_next_token(lexer);
 	if (t == NULL) {
 		*terminated = true;
 		return NULL;
 	}
 
 	hval *result = NULL;
-	expression *expr = read_complete_expression(runtime);
+	expression *expr = read_complete_expression(lexer);
 	if (expr != NULL) {
 		result = runtime_evaluate_expression(runtime, expr, runtime->top_level);
 		expr_destroy(expr, false, runtime->mem);
@@ -287,14 +278,18 @@ hval *runtime_exec_one(runtime *runtime, lexer_input *input, bool *terminated)
 		*terminated = true;
 	}
 
+	lexer_destroy(lexer, false);
 	return result;
 }
 
 hval *runtime_exec(runtime *runtime, lexer_input *input)
 {
+	__current_runtime = runtime;
 	hlog("analyzing...\n");
-	runtime->input = input;
-	expression *expr = runtime_analyze(runtime);
+	lexer *lexer = lexer_create(input);
+	/*runtime->input = input;*/
+	expression *expr = runtime_analyze(runtime, lexer);
+	lexer_destroy(lexer, false);
 
 	hlog("creating main context\n");
 	mem_add_gc_root(runtime->mem, runtime->top_level);
@@ -315,9 +310,9 @@ hval *runtime_exec(runtime *runtime, lexer_input *input)
 
 hval *runtime_load_module(runtime *runtime, lexer_input *input)
 {
-	lexer_input *orig_input = runtime->input;
-	runtime->input = input;
-	expression *expr = runtime_analyze(runtime);
+	lexer *lexer = lexer_create(input);
+	expression *expr = runtime_analyze(runtime, lexer);
+	lexer_destroy(lexer, false);
 	if (runtime->loaded_modules == NULL) {
 		runtime->loaded_modules = ll_create();
 	}
@@ -325,20 +320,19 @@ hval *runtime_load_module(runtime *runtime, lexer_input *input)
 	ll_insert_head(runtime->loaded_modules, expr);
 
 	hval *ret = runtime_evaluate_expression(runtime, expr, runtime->top_level);
-	runtime->input = orig_input;
 	return ret;
 }
 
-expression *runtime_analyze(runtime *rt)
+expression *runtime_analyze(runtime *rt, lexer *lexer)
 {
 	token *t = NULL;
 	expression *expr_list = expr_create(expr_list_t);
 	expr_list->operation.expr_list = ll_create();
 
 	expression *expr = NULL;
-	while ((t = runtime_get_next_token(rt)) != NULL)
+	while ((t = lexer_get_next_token(lexer)) != NULL)
 	{
-		expr = read_complete_expression(rt);
+		expr = read_complete_expression(lexer);
 		if (expr == NULL)
 		{
 			runtime_error("read_complete_expression returned null\n");
@@ -350,35 +344,35 @@ expression *runtime_analyze(runtime *rt)
 	return expr_list;
 }
 
-expression *read_complete_expression(runtime *rt)
+expression *read_complete_expression(lexer *lexer)
 {
 	expression *expr = NULL;
-	token_type tt = rt->current->type;
+	token_type tt = lexer->current->type;
 	token *next;
 
 	switch (tt)
 	{
 		case identifier:
-			expr = read_identifier(rt);
+			expr = read_identifier(lexer);
 			break;
 		case number:
-			expr = read_number(rt);
+			expr = read_number(lexer);
 			break;
 		case string:
-			expr = read_string(rt);
+			expr = read_string(lexer);
 			break;
 		case hash_start:
-			expr = read_hash(rt);
+			expr = read_hash(lexer);
 			break;
 		case list_start:
-			expr = read_list(rt);
-			next = runtime_peek_token(rt);
+			expr = read_list(lexer);
+			next = lexer_peek_token(lexer);
 			if (next && next->type == fn_declaration) {
-				expr = read_function_declaration(rt, expr);
+				expr = read_function_declaration(lexer, expr);
 			}
 			break;
 		case quote:
-			expr = read_quoted(rt);
+			expr = read_quoted(lexer);
 			break;
 		default:
 			runtime_error("unhandled token type: %s\n", token_type_string(tt));
@@ -388,13 +382,13 @@ expression *read_complete_expression(runtime *rt)
 	return expr;
 }
 
-static expression *read_function_declaration(runtime *rt, expression *args) {
-	/*token *pointy = runtime_get_next_token(rt);*/
-	runtime_get_next_token(rt); // consume the ->
-	expect_token(runtime_current_token(rt), fn_declaration);
-	runtime_get_next_token(rt);
-	expect_token(runtime_current_token(rt), list_start);
-	expression *body = read_list(rt);
+static expression *read_function_declaration(lexer *lexer, expression *args) {
+	/*token *pointy = lexer_get_next_token(rt);*/
+	lexer_get_next_token(lexer); // consume the ->
+	expect_token(lexer_current_token(lexer), fn_declaration);
+	lexer_get_next_token(lexer);
+	expect_token(lexer_current_token(lexer), list_start);
+	expression *body = read_list(lexer);
 
 	expression *fn = expr_create(expr_function_t);
 	fn->operation.function_declaration = smalloc(sizeof(function_declaration));
@@ -403,21 +397,21 @@ static expression *read_function_declaration(runtime *rt, expression *args) {
 	return fn;
 }
 
-expression *read_quoted(runtime *rt)
+expression *read_quoted(lexer *lexer)
 {
 	
 	expression *expr = expr_create(expr_deferred_t);
-	runtime_get_next_token(rt);
-	expression *deferred = read_complete_expression(rt);
+	lexer_get_next_token(lexer);
+	expression *deferred = read_complete_expression(lexer);
 	expr->operation.deferred_expression = deferred;
 	return expr;
 }
 
-expression *read_identifier(runtime *rt)
+expression *read_identifier(lexer *lexer)
 {
 	expression *expr = NULL;
 
-	token *t = rt->current;
+	token *t = lexer->current;
 	prop_ref *ref = malloc(sizeof(prop_ref));
 	if (ref == NULL)
 	{
@@ -426,27 +420,25 @@ expression *read_identifier(runtime *rt)
 	}
 
 	ref->name = t->value.string;
-	hlog("read_identifier: %s\n", t->value.string->str);
 	ref->site = NULL;
 	hstr_retain(t->value.string);
 
-	token *next = runtime_peek_token(rt);
+	token *next = lexer_peek_token(lexer);
 	if (next->type == assignment) {
-		hlog("reading assignment\n");
 		// consume the assignment and advance to the next
-		runtime_get_next_token(rt);
-		runtime_get_next_token(rt);
+		lexer_get_next_token(lexer);
+		lexer_get_next_token(lexer);
 		expression *assgn = expr_create(expr_prop_set_t);
 		assgn->operation.prop_set = malloc(sizeof(prop_set));
 		assgn->operation.prop_set->ref = ref;
-		assgn->operation.prop_set->value = read_complete_expression(rt);
+		assgn->operation.prop_set->value = read_complete_expression(lexer);
 		expr = assgn;
 	} else if (next->type == dereference) {
 		hlog("reading dereference\n");
 		// consume the assignment and advance to the next
-		runtime_get_next_token(rt);
-		runtime_get_next_token(rt);
-		expr = read_complete_expression(rt);
+		lexer_get_next_token(lexer);
+		lexer_get_next_token(lexer);
+		expr = read_complete_expression(lexer);
 		expression *parent = expr_create(expr_prop_ref_t);
 		parent->operation.prop_ref = ref;
 		if (expr->type == expr_invocation_t)
@@ -462,7 +454,7 @@ expression *read_identifier(runtime *rt)
 			expr->operation.prop_set->ref->site = parent;
 		}
 	} else if (next->type == list_start || next->type == hash_start) {
-		runtime_get_next_token(rt);
+		lexer_get_next_token(lexer);
 		expr = expr_create(expr_invocation_t);
 		invocation *inv = malloc(sizeof(invocation));
 		if (inv == NULL)
@@ -476,13 +468,13 @@ expression *read_identifier(runtime *rt)
 		inv->function = func;
 		if (next->type == list_start)
 		{
-			inv->list_args = read_list(rt);
+			inv->list_args = read_list(lexer);
 			inv->hash_args = NULL;
 		}
 		else
 		{
 			inv->list_args = NULL;
-			inv->hash_args = read_hash(rt);
+			inv->hash_args = read_hash(lexer);
 		}
 		expr->operation.invocation = inv;
 	} else {
@@ -493,60 +485,61 @@ expression *read_identifier(runtime *rt)
 	return expr;
 }
 
-expression *read_string(runtime *rt)
+expression *read_string(lexer *lexer)
 {
-	token *t = runtime_current_token(rt);
+	token *t = lexer_current_token(lexer);
 	expression *expr = expr_create(expr_primitive_t);
-	expr->operation.primitive = hval_string_create(t->value.string, rt);
-	hval_list_insert_head(rt->primitive_pool, expr->operation.primitive);
+	expr->operation.primitive = hval_string_create(t->value.string, CURRENT_RUNTIME);
+	hval_list_insert_head(CURRENT_RUNTIME->primitive_pool, expr->operation.primitive);
 	return expr;
 }
 
-expression *read_number(runtime *rt)
+expression *read_number(lexer *lexer)
 {
-	token *t = runtime_current_token(rt);
+	token *t = lexer_current_token(lexer);
 	expression *expr = expr_create(expr_primitive_t);
-	expr->operation.primitive = hval_number_create(t->value.number, rt);
-	hval_list_insert_head(rt->primitive_pool, expr->operation.primitive);
+	expr->operation.primitive = hval_number_create(t->value.number, CURRENT_RUNTIME);
+	hval_list_insert_head(CURRENT_RUNTIME->primitive_pool, expr->operation.primitive);
 	return expr;
 }
 
-expression *read_list(runtime *rt)
+expression *read_list(lexer *lexer)
 {
 	expression *list = expr_create(expr_list_literal_t);
 	list->operation.list_literal = ll_create();
 
-	runtime_get_next_token(rt);
-	token *t = runtime_current_token(rt);
+	lexer_get_next_token(lexer);
+	token *t = lexer_current_token(lexer);
 	expression *expr = NULL;
 	while (t != NULL && t->type != list_end)
 	{
-		expr = read_complete_expression(rt);
+		/*fprintf(stderr, " read_list got token: %s\n", token_type_string(t->type));*/
+		expr = read_complete_expression(lexer);
 		ll_insert_tail(list->operation.list_literal, expr);
-		t = runtime_get_next_token(rt);
+		t = lexer_get_next_token(lexer);
 	}
 
 	return list;
 }
 
-static expression *read_hash(runtime *rt)
+static expression *read_hash(lexer *lexer)
 {
 	expression *hash_lit = expr_create(expr_hash_literal_t);
 	hash_lit->operation.hash_literal = hash_create((hash_function) hash_hstr, (key_comparator) hstr_comparator);
 	// consume the hash_start
-	runtime_get_next_token(rt);
-	token *t = runtime_current_token(rt);
+	lexer_get_next_token(lexer);
+	token *t = lexer_current_token(lexer);
 	while (t != NULL && t->type != hash_end)
 	{
 		expect_token(t, identifier);
 		hstr *key = t->value.string;
 		hstr_retain(key);
-		t = runtime_get_next_token(rt);
+		t = lexer_get_next_token(lexer);
 		expect_token(t, assignment);
-		runtime_get_next_token(rt);
-		expression *value = read_complete_expression(rt);
+		lexer_get_next_token(lexer);
+		expression *value = read_complete_expression(lexer);
 		hash_put(hash_lit->operation.hash_literal, key, value);
-		t = runtime_get_next_token(rt);
+		t = lexer_get_next_token(lexer);
 	}
 
 	return hash_lit;
@@ -848,7 +841,7 @@ hval *runtime_call_function(runtime *rt, hval *fn, hval *args, hval *context)
 	hval *result = NULL;
 	if (fn->type == native_function_t) {
 		hval *self = hval_get_self(fn);
-		result = fn->value.native_fn(rt, self, args);
+		result = fn->value.native_fn(self, args);
 	} else {
 		result = eval_expr_folly_invocation(rt, fn, args, context);
 	}
@@ -896,32 +889,32 @@ static hval *eval_expr_deferred(runtime *rt, expression *deferred, hval *context
 	return val;
 }
 
-token *runtime_peek_token(runtime *runtime)
-{
-	if (!runtime->peek) {
-		runtime->peek = get_next_token(runtime->input);
-	}
+/*token *runtime_peek_token(runtime *runtime)*/
+/*{*/
+	/*if (!runtime->peek) {*/
+		/*runtime->peek = get_next_token(runtime->input);*/
+	/*}*/
 
-	return runtime->peek;
-}
+	/*return runtime->peek;*/
+/*}*/
 
-token *runtime_get_next_token(runtime *runtime)
-{
-	if (runtime->current) {
-		token_destroy(runtime->current, NULL);
-	}
+/*token *lexer_get_next_token(runtime *runtime)*/
+/*{*/
+	/*if (runtime->current) {*/
+		/*token_destroy(runtime->current, NULL);*/
+	/*}*/
 
-	token *t = NULL;
-	if (runtime->peek) {
-		t = runtime->peek;
-		runtime->peek = NULL;
-	} else {
-		t = get_next_token(runtime->input);
-	}
+	/*token *t = NULL;*/
+	/*if (runtime->peek) {*/
+		/*t = runtime->peek;*/
+		/*runtime->peek = NULL;*/
+	/*} else {*/
+		/*t = get_next_token(runtime->input);*/
+	/*}*/
 
-	runtime->current = t;
-	return t;
-}
+	/*runtime->current = t;*/
+	/*return t;*/
+/*}*/
 
 static void expect_token(token *t, type token_type)
 {
@@ -950,9 +943,9 @@ static hval *native_print(runtime *rt, hval *self, hval *args)
 			printed_any = true;
 
 			arg = runtime_get_arg_value(node);
-			str = runtime_call_hnamed_function(rt, name, arg, NULL, rt->top_level);
+			str = runtime_call_hnamed_function(CURRENT_RUNTIME, name, arg, NULL, CURRENT_RUNTIME->top_level);
 			fputs(str->value.str->str, stdout);
-			hval_release(str, rt->mem);
+			hval_release(str, CURRENT_RUNTIME->mem);
 			str = NULL;
 			node = node->next;
 		}
@@ -977,7 +970,7 @@ static hval *native_add(runtime *rt, hval *this, hval *args)
 		current = current->next;
 	}
 
-	return hval_number_create(sum, rt);
+	return hval_number_create(sum, CURRENT_RUNTIME);
 }
 
 static hval *native_subtract(runtime *rt, hval *this, hval *args)
@@ -1001,7 +994,7 @@ static hval *native_subtract(runtime *rt, hval *this, hval *args)
 		}
 	}
 
-	return hval_number_create(val, rt);
+	return hval_number_create(val, CURRENT_RUNTIME);
 }
 
 NATIVE_FUNCTION(native_equals) {
@@ -1038,55 +1031,55 @@ NATIVE_FUNCTION(native_equals) {
 		node = node->next;
 	}
 
-	return hval_number_create(equals ? 1 : 0, rt);
+	return hval_number_create(equals ? 1 : 0, CURRENT_RUNTIME);
 }
 
 static NATIVE_FUNCTION(native_is_true)
 {
-	return hval_hash_get(rt->top_level, hval_is_true(this) ? TRUE : FALSE, rt);
+	return hval_hash_get(CURRENT_RUNTIME->top_level, hval_is_true(this) ? TRUE : FALSE, CURRENT_RUNTIME);
 }
 
 static NATIVE_FUNCTION(native_lt)
 {
 	hval *arg1 = NULL;
 	hval *arg2 = NULL;
-	runtime_extract_arg_list(rt, args, &arg1, number_t, &arg2, number_t, NULL);
+	runtime_extract_arg_list(CURRENT_RUNTIME, args, &arg1, number_t, &arg2, number_t, NULL);
 	
 	bool lt = arg1->value.number < arg2->value.number;
-	return hval_number_create(lt ? 1 : 0, rt);
+	return hval_number_create(lt ? 1 : 0, CURRENT_RUNTIME);
 }
 
 static NATIVE_FUNCTION(native_gt)
 {
 	hval *arg1 = NULL;
 	hval *arg2 = NULL;
-	runtime_extract_arg_list(rt, args, &arg1, number_t, &arg2, number_t, NULL);
+	runtime_extract_arg_list(CURRENT_RUNTIME, args, &arg1, number_t, &arg2, number_t, NULL);
 	bool gt = arg1->value.number > arg2->value.number;
-	return hval_number_create(gt ? 1 : 0, rt);
+	return hval_number_create(gt ? 1 : 0, CURRENT_RUNTIME);
 }
 
-static hval *native_fn(runtime *rt, hval *this, hval *args)
+static hval *native_fn(runtime *CURRENT_RUNTIME, hval *this, hval *args)
 {
-	hval *fn = hval_hash_create(rt);
+	hval *fn = hval_hash_create(CURRENT_RUNTIME);
 
-	hval_hash_put(fn, FN_ARGS, (hval *) args->value.list->head->data, rt->mem);
-	hval_hash_put(fn, FN_EXPR, (hval *) args->value.list->tail->data, rt->mem);
+	hval_hash_put(fn, FN_ARGS, (hval *) args->value.list->head->data, CURRENT_RUNTIME->mem);
+	hval_hash_put(fn, FN_EXPR, (hval *) args->value.list->tail->data, CURRENT_RUNTIME->mem);
 	return fn;
 }
 
-static hval *native_clone(runtime *rt, hval *this, hval *args)
+static hval *native_clone(runtime *CURRENT_RUNTIME, hval *this, hval *args)
 {
-	return hval_clone(this, rt);
+	return hval_clone(this, CURRENT_RUNTIME);
 }
 
 static hval *native_extend(runtime *rt, hval *this, hval *args)
 {
 	hlog("native_extend: %p\n", this);
-	hval *sub = hval_hash_create_child(this, rt);
+	hval *sub = hval_hash_create_child(this, CURRENT_RUNTIME);
 	hash_iterator *iter = hash_iterator_create(args->members);
 	while (iter->current_key) {
 		if (iter->current_key != PARENT) {
-			hval_hash_put(sub, iter->current_key, iter->current_value, rt->mem);
+			hval_hash_put(sub, iter->current_key, iter->current_value, CURRENT_RUNTIME->mem);
 		}
 		hash_iterator_next(iter);
 	}
@@ -1102,7 +1095,7 @@ static hval *native_to_string(runtime *rt, hval *this, hval *args) {
 	free(str);
 	str = NULL;
 
-	hval *obj = hval_string_create(hs, rt);
+	hval *obj = hval_string_create(hs, CURRENT_RUNTIME);
 	hstr_release(hs);
 	return obj;
 }
@@ -1116,7 +1109,7 @@ static hval *native_number_to_string(runtime *rt, hval *this, hval *args) {
 	hstr *hs = hstr_create(str);
 	free(str);
 	str = NULL;
-	hval *obj = hval_string_create(hs, rt);
+	hval *obj = hval_string_create(hs, CURRENT_RUNTIME);
 	hstr_release(hs);
 	return obj;
 }
@@ -1135,10 +1128,10 @@ static hval *native_cond(runtime *rt, hval *this, hval *args)
 		/*fprintf(stderr, " test_node: %p %p; cond_hval: %p\n", test_node, test_node->data, cond_hval);*/
 		linked_list *cond_pair = cond_hval->value.list;
 
-		hval *test = undefer(rt, (hval *) cond_pair->head->data);
+		hval *test = undefer(CURRENT_RUNTIME, (hval *) cond_pair->head->data);
 
 		if (hval_is_true(test)) {
-			return cond_pair->head != cond_pair->tail ? undefer(rt, (hval *) cond_pair->tail->data) : test;
+			return cond_pair->head != cond_pair->tail ? undefer(CURRENT_RUNTIME, (hval *) cond_pair->tail->data) : test;
 			break;
 		}
 
@@ -1153,11 +1146,11 @@ NATIVE_FUNCTION(native_while)
 {
 	hval *test = NULL;
 	hval *body = NULL;
-	runtime_extract_arg_list(rt, args, &test, deferred_expression_t, &body, deferred_expression_t, NULL);
+	runtime_extract_arg_list(CURRENT_RUNTIME, args, &test, deferred_expression_t, &body, deferred_expression_t, NULL);
 
 	hval *result = NULL;
-	while (hval_is_true(undefer(rt, test))) {
-		result = undefer(rt, body);
+	while (hval_is_true(undefer(CURRENT_RUNTIME, test))) {
+		result = undefer(CURRENT_RUNTIME, body);
 		/*hval *cond = undefer(test);*/
 	}
 
@@ -1165,15 +1158,15 @@ NATIVE_FUNCTION(native_while)
 }
 
 static hval *undefer(runtime *rt, hval *maybe_deferred) {
-	mem_add_gc_root(rt->mem, maybe_deferred);
+	mem_add_gc_root(CURRENT_RUNTIME->mem, maybe_deferred);
 	if (maybe_deferred->type == deferred_expression_t) {
 		deferred_expression *def = &(maybe_deferred->value.deferred_expression);
-		hval *result = eval_expr_list(rt, def->expr->operation.list_literal, def->ctx);
-		mem_remove_gc_root(rt->mem, maybe_deferred);
+		hval *result = eval_expr_list(CURRENT_RUNTIME, def->expr->operation.list_literal, def->ctx);
+		mem_remove_gc_root(CURRENT_RUNTIME->mem, maybe_deferred);
 		return result;
 	}
 
-	mem_remove_gc_root(rt->mem, maybe_deferred);
+	mem_remove_gc_root(CURRENT_RUNTIME->mem, maybe_deferred);
 	return maybe_deferred;
 }
 
@@ -1214,14 +1207,14 @@ NATIVE_FUNCTION(native_and)
 	bool result = true;
 	while (node && result) {
 		hval *current = runtime_get_arg_value(node);
-		current = undefer(rt, current);
+		current = undefer(CURRENT_RUNTIME, current);
 		if (!hval_is_true(current)) {
 			result = false;
 		}
 		node = node->next;
 	}
 
-	return hval_number_create(result ? 1 : 0, rt);
+	return hval_number_create(result ? 1 : 0, CURRENT_RUNTIME);
 }
 
 NATIVE_FUNCTION(native_or)
@@ -1234,14 +1227,14 @@ NATIVE_FUNCTION(native_or)
 	bool result = false;
 	while (node && !result) {
 		hval *current = runtime_get_arg_value(node);
-		current = undefer(rt, current);
+		current = undefer(CURRENT_RUNTIME, current);
 		if (hval_is_true(current)) {
 			result = true;
 		}
 		node = node->next;
 	}
 
-	return hval_number_create(result ? 1 : 0, rt);
+	return hval_number_create(result ? 1 : 0, CURRENT_RUNTIME);
 }
 
 NATIVE_FUNCTION(native_not)
@@ -1255,7 +1248,7 @@ NATIVE_FUNCTION(native_not)
 	}
 
 	hval *value = runtime_get_arg_value(args->value.list->head);
-	return hval_number_create(hval_is_true(value) ? 0 : 1, rt);
+	return hval_number_create(hval_is_true(value) ? 0 : 1, CURRENT_RUNTIME);
 }
 
 NATIVE_FUNCTION(native_xor)
@@ -1277,22 +1270,22 @@ NATIVE_FUNCTION(native_xor)
 		node = node->next;
 	}
 
-	return hval_number_create(truths == 1 ? 1 : 0, rt);
+	return hval_number_create(truths == 1 ? 1 : 0, CURRENT_RUNTIME);
 }
 
 NATIVE_FUNCTION(native_load)
 {
 	hval *file = NULL;
-	hval *context = rt->top_level;
+	hval *context = CURRENT_RUNTIME->top_level;
 	/*if (args->type == list_t) {*/
-	runtime_extract_arg_list(rt, args, &file, string_t, NULL);
+	runtime_extract_arg_list(CURRENT_RUNTIME, args, &file, string_t, NULL);
 	/*} else {*/
 		/*static hstr *key_filename, *key_into;*/
 		/*if (key_filename == NULL) key_filename = hstr_create("file");*/
 		/*if (key_into == NULL) key_into = hstr_create("into");*/
 
-		/*file = hval_hash_get(args, key_filename, rt);*/
-		/*context = hval_hash_get(args, key_into, rt);*/
+		/*file = hval_hash_get(args, key_filename, CURRENT_RUNTIME);*/
+		/*context = hval_hash_get(args, key_into, CURRENT_RUNTIME);*/
 	/*}*/
 
 	char *filename = file->value.str->str;
@@ -1300,22 +1293,22 @@ NATIVE_FUNCTION(native_load)
 	int err = stat(filename, &stat_buf);
 	if (err == -1) {
 		perror("Unable to open file");
-		return hval_hash_get(rt->top_level, FALSE, rt);
+		return hval_hash_get(CURRENT_RUNTIME->top_level, FALSE, CURRENT_RUNTIME);
 	} else if (!S_ISREG(stat_buf.st_mode)) {
-		return hval_hash_get(rt->top_level, FALSE, rt);
+		return hval_hash_get(CURRENT_RUNTIME->top_level, FALSE, CURRENT_RUNTIME);
 	}
 
 	lexer_input *input = lexer_file_input_create(filename);
-	runtime_load_module(rt, input);
+	runtime_load_module(CURRENT_RUNTIME, input);
 	lexer_input_destroy(input);
-	return hval_hash_get(rt->top_level, TRUE, rt);
+	return hval_hash_get(CURRENT_RUNTIME->top_level, TRUE, CURRENT_RUNTIME);
 }
 
 NATIVE_FUNCTION(native_show_heap)
 {
-	debug_heap_output(rt->mem);
+	debug_heap_output(CURRENT_RUNTIME->mem);
 	return NULL;
-	/*printf("heap size: %s bytes in %d chunks\n", rt->mem->*/
+	/*printf("heap size: %s bytes in %d chunks\n", CURRENT_RUNTIME->mem->*/
 }
 
 static NATIVE_FUNCTION(native_string_concat)
@@ -1326,14 +1319,14 @@ static NATIVE_FUNCTION(native_string_concat)
 	/*char *arg_str = NULL;*/
 	LL_FOREACH(args->value.list, arg_node) {
 		arg = runtime_get_arg_value(arg_node);
-		arg_str = runtime_call_hnamed_function(rt, name, arg, NULL, rt->top_level);
+		arg_str = runtime_call_hnamed_function(CURRENT_RUNTIME, name, arg, NULL, CURRENT_RUNTIME->top_level);
 		/*arg_str = hval_to_string(arg);*/
 		buffer_append_string(buf, arg_str->value.str->str);
-		hval_release(arg_str, rt->mem);
+		hval_release(arg_str, CURRENT_RUNTIME->mem);
 	}
 
 	hstr *hs = hstr_create(buf->data);
-	hval *str = hval_string_create(hs, rt);
+	hval *str = hval_string_create(hs, CURRENT_RUNTIME);
 	hstr_release(hs);
 	buffer_destroy(buf);
 
