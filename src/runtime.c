@@ -15,12 +15,15 @@
 #include "ht.h"
 #include "smalloc.h"
 #include "str.h"
+#include "modules/file.h"
 
 expression *runtime_analyze(runtime *, lexer *);
+typedef void (*module_initializer)(runtime *, native_function_spec **, int *);
 static void expect_token(token *t, type token_type);
 static void register_top_level(runtime *);
 static void register_builtin(runtime *, hval *, char *, hval *, bool);
 static void register_builtin_r(runtime *, hval *, char *, hval *);
+static void init_module(runtime *rt, module_initializer init);
 
 static expression *read_complete_expression(lexer *);
 static expression *read_identifier(lexer *);
@@ -46,18 +49,14 @@ static hval *undefer(runtime *rt, hval *maybe_deferred);
 
 static hval *get_prop_ref_site(runtime *, prop_ref *, hval *);
 
-#define NATIVE_FUNCTION(name) hval *name(hval *this, hval *args)
-
-void runtime_extract_arg_list(runtime *rt, hval *args, ...);
-
-static hval *native_print(runtime *, hval *this, hval *args);
+static NATIVE_FUNCTION(native_print);
 static hval *native_add(runtime *, hval *this, hval *args);
 static hval *native_subtract(runtime *, hval *this, hval *args);
 static hval *native_fn(runtime *, hval *this, hval *args);
 static hval *native_clone(runtime *, hval *this, hval *args);
 static hval *native_extend(runtime *, hval *this, hval *args);
-static hval *native_to_string(runtime *, hval *this, hval *args);
-static hval *native_string_to_string(runtime *rt, hval *this, hval *args);
+static NATIVE_FUNCTION(native_to_string);
+static NATIVE_FUNCTION(native_string_to_string);
 static hval *native_number_to_string(runtime *rt, hval *this, hval *args);
 static hval *native_cond(runtime *rt, hval *this, hval *args);
 
@@ -78,8 +77,18 @@ static NATIVE_FUNCTION(native_string_concat);
 static NATIVE_FUNCTION(native_show_heap);
 
 #define lexer_current_token(rt) (rt->current)
-#define runtime_error(...) fprintf(stderr, __VA_ARGS__); exit(1);
 typedef void (*top_level_initializer)(runtime *);
+
+typedef struct module_spec {
+	module_initializer init;
+	void (*shutdown)(runtime *);
+} module_spec;
+
+static module_spec default_modules[] = {
+	{ mod_file_init, mod_file_shutdown }
+};
+
+#define NUM_DEFAULT_MODULES (sizeof(default_modules) / sizeof(module_spec))
 
 static native_function_spec native_functions[] = {
 	{ "Object.extend", (native_function) native_extend },
@@ -103,8 +112,7 @@ static native_function_spec native_functions[] = {
 	{ "or", (native_function) native_or },
 	{ "and", (native_function) native_and },
 	{ "not", (native_function) native_not },
-	{ "xor", (native_function) native_xor },
-	{ NULL, NULL }
+	{ "xor", (native_function) native_xor }
 };
 
 static top_level_initializer top_level_initializers[] = {
@@ -125,6 +133,7 @@ void runtime_destroy_globals()
 runtime *runtime_create()
 {
 	runtime *r = malloc(sizeof(runtime));
+	CURRENT_RUNTIME = r;
 	r->mem = mem_create();
 	r->loaded_modules = NULL;
 
@@ -164,6 +173,10 @@ void runtime_destroy(runtime *r)
 		ll_destroy(r->loaded_modules, NULL, NULL);
 	}
 
+	for (int i = 0; i < NUM_DEFAULT_MODULES; i++) {
+		default_modules[i].shutdown(r);
+	}
+
 	hlog("releasing top_level: %p\n", r->top_level);
 	mem_remove_gc_root(r->mem, r->top_level);
 	r->top_level = NULL;
@@ -191,15 +204,28 @@ static void register_top_level(runtime *r)
 	}
 
 	hlog("Registering top levels under %p\n", r->top_level);
-	for (i = 0; i < sizeof(native_functions); i++) {
-		if (native_functions[i].path == NULL) {
-			break;
-		}
-		hlog("registering: %s\n", native_functions[i].path);
-		register_builtin_r(r,
-			r->top_level,
-			native_functions[i].path,
-			hval_native_function_create(native_functions[i].function, r));
+
+	register_native_functions(r, native_functions, sizeof(native_functions) / sizeof(native_function_spec));
+	for (int i = 0; i < NUM_DEFAULT_MODULES; i++) {
+		init_module(r, default_modules[i].init);
+	}
+	/*init_module(r, mod_file_init);*/
+}
+
+void init_module(runtime *rt, module_initializer init) {
+	native_function_spec *functions = NULL;
+	int count = 0;
+	init(rt, &functions, &count);
+	if (functions != NULL && count != 0) {
+		register_native_functions(rt, functions, count);
+	}
+}
+
+void register_native_functions(runtime *r, native_function_spec *spec, int count) {
+	hval *func_val = NULL;
+	for (native_function_spec *max = spec + count; spec < max; spec++) {
+		func_val = hval_native_function_create(spec->function, r);
+		register_builtin_r(r, r->top_level, spec->path, func_val);
 	}
 }
 
@@ -614,6 +640,9 @@ static hval *eval_expr_function_args(runtime *rt, expression *expr, bool for_inv
 			hval_hash_put(arg, NAME, hval_string_create(set->ref->name, rt), rt->mem);
 			hval_hash_put(arg, VALUE, runtime_evaluate_expression(rt, set->value, context), rt->mem);
 			break;
+		case expr_primitive_t:
+			hval_hash_put(arg, VALUE, arg_expr->operation.primitive, rt->mem);
+			break;
 		default:
 			value = runtime_evaluate_expression(rt, arg_expr, context);
 			hval_hash_put(arg, VALUE, value, rt->mem);
@@ -926,7 +955,7 @@ static void expect_token(token *t, type token_type)
 	}
 }
 
-static hval *native_print(runtime *rt, hval *self, hval *args)
+static hval *native_print(hval *self, hval *args)
 {
 	hstr *name = hstr_create("to_string");
 	hval *str = NULL;
@@ -1043,7 +1072,7 @@ static NATIVE_FUNCTION(native_lt)
 {
 	hval *arg1 = NULL;
 	hval *arg2 = NULL;
-	runtime_extract_arg_list(CURRENT_RUNTIME, args, &arg1, number_t, &arg2, number_t, NULL);
+	extract_arg_list(CURRENT_RUNTIME, args, &arg1, number_t, &arg2, number_t, NULL);
 	
 	bool lt = arg1->value.number < arg2->value.number;
 	return hval_number_create(lt ? 1 : 0, CURRENT_RUNTIME);
@@ -1053,7 +1082,7 @@ static NATIVE_FUNCTION(native_gt)
 {
 	hval *arg1 = NULL;
 	hval *arg2 = NULL;
-	runtime_extract_arg_list(CURRENT_RUNTIME, args, &arg1, number_t, &arg2, number_t, NULL);
+	extract_arg_list(CURRENT_RUNTIME, args, &arg1, number_t, &arg2, number_t, NULL);
 	bool gt = arg1->value.number > arg2->value.number;
 	return hval_number_create(gt ? 1 : 0, CURRENT_RUNTIME);
 }
@@ -1089,7 +1118,7 @@ static hval *native_extend(runtime *rt, hval *this, hval *args)
 
 }
 
-static hval *native_to_string(runtime *rt, hval *this, hval *args) {
+static hval *native_to_string(hval *this, hval *args) {
 	char *str = hval_to_string(this);
 	hstr *hs = hstr_create(str);
 	free(str);
@@ -1100,7 +1129,7 @@ static hval *native_to_string(runtime *rt, hval *this, hval *args) {
 	return obj;
 }
 
-static hval *native_string_to_string(runtime *rt, hval *this, hval *args) {
+static NATIVE_FUNCTION(native_string_to_string) {
 	return this;
 }
 
@@ -1146,7 +1175,7 @@ NATIVE_FUNCTION(native_while)
 {
 	hval *test = NULL;
 	hval *body = NULL;
-	runtime_extract_arg_list(CURRENT_RUNTIME, args, &test, deferred_expression_t, &body, deferred_expression_t, NULL);
+	extract_arg_list(CURRENT_RUNTIME, args, &test, deferred_expression_t, &body, deferred_expression_t, NULL);
 
 	hval *result = NULL;
 	while (hval_is_true(undefer(CURRENT_RUNTIME, test))) {
@@ -1168,33 +1197,6 @@ static hval *undefer(runtime *rt, hval *maybe_deferred) {
 
 	mem_remove_gc_root(CURRENT_RUNTIME->mem, maybe_deferred);
 	return maybe_deferred;
-}
-
-void runtime_extract_arg_list(runtime *rt, hval *arglist, ...)
-{
-	if (arglist->type != list_t) {
-		runtime_error("argument error: expected list\n");
-	}
-
-	va_list vargs;
-	va_start(vargs, arglist);
-	hval **dest = NULL;
-	hval *value = NULL;
-	type expected_type;
-	ll_node *arglist_node = arglist->value.list->head;
-	while ((dest = va_arg(vargs, hval**)) != NULL) {
-		expected_type = va_arg(vargs, type);
-		/*value = (hval *) arglist_node->data;*/
-		value = runtime_get_arg_value(arglist_node);
-		if (value->type == expected_type) {
-			*dest = value;
-		} else {
-			runtime_error("argument error: got %s, expected %s\n", hval_type_string(expected_type), hval_type_string(value->type));
-		}
-		arglist_node = arglist_node->next;
-	}
-
-	va_end(vargs);
 }
 
 NATIVE_FUNCTION(native_and)
@@ -1278,7 +1280,7 @@ NATIVE_FUNCTION(native_load)
 	hval *file = NULL;
 	hval *context = CURRENT_RUNTIME->top_level;
 	/*if (args->type == list_t) {*/
-	runtime_extract_arg_list(CURRENT_RUNTIME, args, &file, string_t, NULL);
+	extract_arg_list(CURRENT_RUNTIME, args, &file, string_t, NULL);
 	/*} else {*/
 		/*static hstr *key_filename, *key_into;*/
 		/*if (key_filename == NULL) key_filename = hstr_create("file");*/

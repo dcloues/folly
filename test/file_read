@@ -1,0 +1,8 @@
+f: File.clone()
+f.path: "/tmp/foo"
+f.open("r")
+while(`(not(f.eof())) `(
+    io.print(f.read_line())
+))
+
+io.print("closed:" f.close())

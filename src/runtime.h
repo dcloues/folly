@@ -42,9 +42,6 @@ void runtime_init_globals();
 void runtime_destroy_globals();
 hval *runtime_build_function_arguments(runtime *runtime, hval *fn, hval *in_args);
 
-#define runtime_get_arg_value(lln) (hval_hash_get(((hval *)lln->data), VALUE, NULL))
-#define runtime_get_arg_name(lln) (hval_hash_get(((hval *)lln->data), NAME, NULL))
-
 #define CURRENT_RUNTIME __current_runtime
 #endif
 

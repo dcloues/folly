@@ -4,6 +4,9 @@
 #include "ht.h"
 #include "str.h"
 
+extern hstr *VALUE;
+extern hstr *NAME;
+
 typedef enum { free_t, string_t, number_t, hash_t, list_t, deferred_expression_t, native_function_t, boolean_t, function_t } type;
 typedef enum { expr_prop_ref_t, expr_prop_set_t, expr_invocation_t, expr_list_literal_t, expr_hash_literal_t, expr_primitive_t, expr_list_t, expr_deferred_t, expr_function_t } expression_type;
 
@@ -112,5 +115,12 @@ struct mem {
 	chunk_list chunks[8];
 	bool gc;
 };
+
+#define NATIVE_FUNCTION(name) hval *name(hval *this, hval *args)
+#define runtime_error(...) fprintf(stderr, __VA_ARGS__); exit(1);
+#define runtime_get_arg_value(lln) (hval_hash_get(((hval *)lln->data), VALUE, NULL))
+#define runtime_get_arg_name(lln) (hval_hash_get(((hval *)lln->data), NAME, NULL))
+void extract_arg_list(runtime *rt, hval *args, ...);
+void register_native_functions(runtime *r, native_function_spec *spec, int count);
 
 #endif

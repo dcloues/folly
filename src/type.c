@@ -22,7 +22,6 @@ static char *hval_hash_to_string(hash *h);
 static char *hval_list_to_string(linked_list *h);
 void print_hash_member(hash *h, hstr *key, hval *value, buffer *b);
 static void prop_ref_destroy(prop_ref *ref, bool destroy_hvals, mem *m);
-static void hval_clone_hash(hval *src, hval *dest, runtime *rt);
 
 #if HVAL_STATS
 static int hval_create_count = 0;
@@ -104,7 +103,7 @@ void hval_clone_hash(hval *src, hval *dest, runtime *rt) {
 		hval *value = iter->current_value;
 
 		if (value && hval_is_callable(value) && (hval_get_self(value) == src || hval_get_self(value) == NULL)) {
-			fprintf(stderr, "bind func %p; default args %p\n", value, hval_hash_get(value, FN_ARGS, rt));
+			/*fprintf(stderr, "bind func %p; default args %p\n", value, hval_hash_get(value, FN_ARGS, rt));*/
 			value = hval_clone(value, rt);
 			hval_bind_function(value, dest, rt->mem);
 		}
@@ -354,7 +353,12 @@ void print_hash_member(hash *h, hstr *key, hval *value, buffer *b)
 	}
 }
 
-hval *hval_create(type hval_type, runtime *rt)
+hval *hval_create(type t, runtime *rt)
+{
+	return hval_create_custom(sizeof(hval), t, rt);
+}
+
+hval *hval_create_custom(size_t size, type hval_type, runtime *rt)
 {
 #if HVAL_STATS
 	hval_create_count++;
@@ -377,12 +381,6 @@ hval *hval_create(type hval_type, runtime *rt)
 	hv->reachable = false;
 	hlog("hval_create: %p: %s\n", hv, hval_type_string(hval_type));
 	return hv;
-}
-
-hval *hval_create_custom(type hval_type, size_t *size, runtime *rt)
-{
-	fprintf(stderr, "hval_create_custom not implemented\n");
-	exit(1);
 }
 
 void hval_retain(hval *hv)

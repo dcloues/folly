@@ -22,11 +22,13 @@ hstr *FALSE;
 hstr *NAME;
 hstr *VALUE;
 
+hval *hval_create_custom(size_t size, type t, runtime *rt);
 hval *hval_create(type t, runtime *rt);
 void hval_retain(hval *hv);
 void hval_release(hval *hv, mem *m);
 void hval_destroy(hval *hv, mem *m, bool recursive);
 hval *hval_clone(hval *hv, runtime *rt);
+void hval_clone_hash(hval *src, hval *dest, runtime *rt);
 hval *hval_string_create(hstr *str, runtime *rt);
 hval *hval_number_create(int num, runtime *rt);
 hval *hval_boolean_create(bool value, runtime *rt);

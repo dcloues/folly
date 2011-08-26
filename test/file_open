@@ -1,0 +1,7 @@
+f: File.clone()
+f.path: "/tmp/foo"
+f.open("r")
+io.print(f.read_line() f.eof())
+io.print(f.read_line() f.eof())
+io.print(f.read_line() f.eof())
+io.print(f.read_line() f.eof())
