@@ -43,6 +43,7 @@ void type_init_globals()
 	FALSE = hstr_create("false");
 	NAME = hstr_create("name");
 	VALUE = hstr_create("value");
+	LENGTH = hstr_create("length");
 }
 
 void type_destroy_globals()
@@ -58,6 +59,7 @@ void type_destroy_globals()
 	hstr_release(FALSE);
 	hstr_release(NAME);
 	hstr_release(VALUE);
+	hstr_release(LENGTH);
 }
 
 const char *hval_type_string(type t)
@@ -121,6 +123,8 @@ hval *hval_string_create(hstr *str, runtime *rt)
 	hval *hv = hval_hash_create_child(hval_hash_get(rt->top_level, STRING, rt), rt);
 	hv->type = string_t;
 	hv->value.str = str;
+	hval *len = hval_number_create(strlen(str->str), rt);
+	hval_hash_put(hv, LENGTH, len, rt->mem);
 	return hv;
 }
 

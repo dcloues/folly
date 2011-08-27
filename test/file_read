@@ -3,7 +3,7 @@ f.path: "/tmp/foo"
 f.open("r")
 while(`not(f.eof()) `(
     line: f.read_line()
-    io.print(line)
+    io.print(line.length "::" line)
 ))
 
 io.print("closed:" f.close())

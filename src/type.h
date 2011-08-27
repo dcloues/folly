@@ -21,6 +21,7 @@ hstr *TRUE;
 hstr *FALSE;
 hstr *NAME;
 hstr *VALUE;
+hstr *LENGTH;
 
 hval *hval_create_custom(size_t size, type t, runtime *rt);
 hval *hval_create(type t, runtime *rt);
