@@ -691,8 +691,10 @@ static hval *eval_expr_list_literal(runtime *rt, expression *expr_list, hval *co
 	{
 		expr = (expression *) current->data;
 		result = runtime_evaluate_expression(rt, expr, context);
-		hval_list_insert_tail(list, result);
-		hval_release(result, rt->mem);
+		if (result) {
+			hval_list_insert_tail(list, result);
+			hval_release(result, rt->mem);
+		}
 		result = NULL;
 		current = current->next;
 	}
@@ -1192,7 +1194,7 @@ static hval *undefer(runtime *rt, hval *maybe_deferred) {
 	mem_add_gc_root(CURRENT_RUNTIME->mem, maybe_deferred);
 	if (maybe_deferred->type == deferred_expression_t) {
 		deferred_expression *def = &(maybe_deferred->value.deferred_expression);
-		hval *result = eval_expr_list(CURRENT_RUNTIME, def->expr->operation.list_literal, def->ctx);
+		hval *result = runtime_evaluate_expression(CURRENT_RUNTIME, def->expr, def->ctx);
 		mem_remove_gc_root(CURRENT_RUNTIME->mem, maybe_deferred);
 		return result;
 	}
