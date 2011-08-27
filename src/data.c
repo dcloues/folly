@@ -15,7 +15,7 @@ void extract_arg_list(runtime *rt, hval *arglist, ...)
 	hval **dest = NULL;
 	hval *value = NULL;
 	type expected_type;
-	ll_node *arglist_node = arglist->value.list->head;
+	ll_node *arglist_node = hval_list_head(arglist);
 	while ((dest = va_arg(vargs, hval**)) != NULL) {
 		expected_type = va_arg(vargs, type);
 		/*value = (hval *) arglist_node->data;*/

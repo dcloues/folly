@@ -12,6 +12,7 @@
 #include "log.h"
 #include "mm.h"
 #include "type.h"
+#include "modules/list.h"
 
 typedef struct {
 	mem *mem;
@@ -210,30 +211,29 @@ hval *hval_hash_put(hval *hv, hstr *key, hval *value, mem *m)
 
 hval *hval_list_create(runtime *rt)
 {
-	hval *hv = hval_create(list_t, rt);
-	hv->value.list = ll_create();
-	assert(hv->value.list != NULL);
-	return hv;
+	list_hval *hv = (list_hval *) hval_create_custom(sizeof(list_hval), list_t, rt);
+	hv->list = ll_create();
+	/*assert(hval_list_list(hv) != NULL);*/
+	return (hval *) hv;
 }
 
-void hval_list_insert_tail(hval *list, hval *val)
+void hval_list_insert_tail(list_hval *list, hval *val)
 {
 	if (val)
 	{
 		hval_retain(val);
 	}
 
-	ll_insert_tail(list->value.list, val);
+	ll_insert_tail(list->list, val);
 }
 
-void hval_list_insert_head(hval *list, hval *val)
+void hval_list_insert_head(list_hval *list, hval *val)
 {
 	if (val)
 	{
 		hval_retain(val);
 	}
-	assert(list->value.list != NULL);
-	ll_insert_head(list->value.list, val);
+	ll_insert_head(list->list, val);
 }
 
 hval *hval_native_function_create(native_function fn, runtime *rt)
@@ -284,7 +284,7 @@ char *hval_to_string(hval *hval)
 			free(contents);
 			return str;
 		case list_t:
-			contents = hval_list_to_string(hval->value.list);
+			contents = hval_list_to_string(hval_list_list(hval));
 			str = fmt("%s@%p: %s", type_str, hval, contents);
 			free(contents);
 			return str;
@@ -417,9 +417,9 @@ void hval_destroy(hval *hv, mem *m, bool recursive)
 			break;
 		case list_t:
 			if (recursive) {
-				ll_destroy(hv->value.list, (destructor) hval_release, NULL);
+				ll_destroy(hval_list_list(hv), (destructor) hval_release, NULL);
 			} else {
-				ll_destroy(hv->value.list, NULL, NULL);
+				ll_destroy(hval_list_list(hv), NULL, NULL);
 			}
 			break;
 		case hash_t:
@@ -429,6 +429,9 @@ void hval_destroy(hval *hv, mem *m, bool recursive)
 				hval_release(hv->value.deferred_expression.ctx, m);
 			}
 			expr_destroy(hv->value.deferred_expression.expr, recursive, m);
+			break;
+		default:
+			fprintf(stderr, "Unhandled type in hval_destroy()\n");
 			break;
 		/*case function_t:*/
 			/*free(hv->value.function_declaration);*/

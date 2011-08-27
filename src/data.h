@@ -11,8 +11,10 @@ typedef enum { free_t, string_t, number_t, hash_t, list_t, deferred_expression_t
 typedef enum { expr_prop_ref_t, expr_prop_set_t, expr_invocation_t, expr_list_literal_t, expr_hash_literal_t, expr_primitive_t, expr_list_t, expr_deferred_t, expr_function_t } expression_type;
 
 typedef struct hval hval;
+typedef struct list_hval list_hval;
 typedef struct mem mem;
 typedef struct expression expression;
+//typedef struct _list_hval list_hval;
 
 typedef struct prop_ref {
 	expression *site;
@@ -80,11 +82,16 @@ struct hval {
 	bool reachable;
 };
 
+//struct list_hval {
+	//hval base;
+	//linked_list *list;
+//};
+
 typedef struct {
 	hval *top_level;
 	hval *last_result;
 	mem *mem;
-	hval *primitive_pool;
+	list_hval *primitive_pool;
 	hval *object_root;
 
 	linked_list *loaded_modules;

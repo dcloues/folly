@@ -243,8 +243,8 @@ void mark(hval *hv) {
 	}
 
 	if (hv->type == list_t) {
-		assert(hv->value.list != NULL);
-		ll_node *node = hv->value.list->head;
+		/*assert(hv->value.list != NULL);*/
+		ll_node *node = hval_list_head(hv);
 		while (node) {
 			mark((hval *) node->data);
 			node = node->next;
