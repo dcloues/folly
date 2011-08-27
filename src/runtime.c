@@ -50,15 +50,15 @@ static hval *undefer(runtime *rt, hval *maybe_deferred);
 static hval *get_prop_ref_site(runtime *, prop_ref *, hval *);
 
 static NATIVE_FUNCTION(native_print);
-static hval *native_add(runtime *, hval *this, hval *args);
-static hval *native_subtract(runtime *, hval *this, hval *args);
-static hval *native_fn(runtime *, hval *this, hval *args);
-static hval *native_clone(runtime *, hval *this, hval *args);
-static hval *native_extend(runtime *, hval *this, hval *args);
+static NATIVE_FUNCTION(native_add);
+static NATIVE_FUNCTION(native_subtract);
+static NATIVE_FUNCTION(native_fn);
+static NATIVE_FUNCTION(native_clone);
+static NATIVE_FUNCTION(native_extend);
 static NATIVE_FUNCTION(native_to_string);
 static NATIVE_FUNCTION(native_string_to_string);
-static hval *native_number_to_string(runtime *rt, hval *this, hval *args);
-static hval *native_cond(runtime *rt, hval *this, hval *args);
+static NATIVE_FUNCTION(native_number_to_string);
+static NATIVE_FUNCTION(native_cond);
 
 static void init_booleans(runtime *rt);
 
@@ -955,7 +955,7 @@ static void expect_token(token *t, type token_type)
 	}
 }
 
-static hval *native_print(hval *self, hval *args)
+NATIVE_FUNCTION(native_print)
 {
 	hstr *name = hstr_create("to_string");
 	hval *str = NULL;
@@ -988,7 +988,7 @@ static hval *native_print(hval *self, hval *args)
 	return NULL;
 }
 
-static hval *native_add(runtime *rt, hval *this, hval *args)
+NATIVE_FUNCTION(native_add)
 {
 	int sum = 0;
 	ll_node *current = args->value.list->head;
@@ -1002,7 +1002,7 @@ static hval *native_add(runtime *rt, hval *this, hval *args)
 	return hval_number_create(sum, CURRENT_RUNTIME);
 }
 
-static hval *native_subtract(runtime *rt, hval *this, hval *args)
+NATIVE_FUNCTION(native_subtract)
 {
 	int val = 0;
 	linked_list *arglist = args->value.list;
@@ -1087,7 +1087,7 @@ static NATIVE_FUNCTION(native_gt)
 	return hval_number_create(gt ? 1 : 0, CURRENT_RUNTIME);
 }
 
-static hval *native_fn(runtime *CURRENT_RUNTIME, hval *this, hval *args)
+static NATIVE_FUNCTION(native_fn)
 {
 	hval *fn = hval_hash_create(CURRENT_RUNTIME);
 
@@ -1096,12 +1096,12 @@ static hval *native_fn(runtime *CURRENT_RUNTIME, hval *this, hval *args)
 	return fn;
 }
 
-static hval *native_clone(runtime *CURRENT_RUNTIME, hval *this, hval *args)
+static NATIVE_FUNCTION(native_clone)
 {
 	return hval_clone(this, CURRENT_RUNTIME);
 }
 
-static hval *native_extend(runtime *rt, hval *this, hval *args)
+static NATIVE_FUNCTION(native_extend)
 {
 	hlog("native_extend: %p\n", this);
 	hval *sub = hval_hash_create_child(this, CURRENT_RUNTIME);
@@ -1118,7 +1118,8 @@ static hval *native_extend(runtime *rt, hval *this, hval *args)
 
 }
 
-static hval *native_to_string(hval *this, hval *args) {
+static NATIVE_FUNCTION(native_to_string)
+{
 	char *str = hval_to_string(this);
 	hstr *hs = hstr_create(str);
 	free(str);
@@ -1133,7 +1134,8 @@ static NATIVE_FUNCTION(native_string_to_string) {
 	return this;
 }
 
-static hval *native_number_to_string(runtime *rt, hval *this, hval *args) {
+static NATIVE_FUNCTION(native_number_to_string)
+{
 	char *str = fmt("%d", this->value.number);
 	hstr *hs = hstr_create(str);
 	free(str);
@@ -1143,7 +1145,7 @@ static hval *native_number_to_string(runtime *rt, hval *this, hval *args) {
 	return obj;
 }
 
-static hval *native_cond(runtime *rt, hval *this, hval *args)
+static NATIVE_FUNCTION(native_cond)
 {
 	if (args->type != list_t) {
 		runtime_error("native_cond: argument mismatch: expected list");
