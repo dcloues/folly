@@ -5,3 +5,10 @@ io.print(a)
 popped: a.pop()
 io.print("popped:" popped)
 io.print("list:" a)
+
+func: (in) -> (
+    io.print("got value" in)
+)
+a.foreach(func)
+io.print("without intermediate:")
+a.foreach(io.print)

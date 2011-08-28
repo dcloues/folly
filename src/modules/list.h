@@ -23,5 +23,6 @@ void mod_list_init(runtime *, native_function_spec **functions, int *function_co
 NATIVE_FUNCTION(mod_list_clone);
 NATIVE_FUNCTION(mod_list_push);
 NATIVE_FUNCTION(mod_list_pop);
+NATIVE_FUNCTION(mod_list_foreach);
 
 #endif
