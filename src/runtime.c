@@ -148,6 +148,9 @@ runtime *runtime_create()
 	hstr_release(str);
 	mem_add_gc_root(r->mem, r->top_level);
 
+	// init built-in types early
+	init_module(r, mod_list_init);
+
 	// create a separate gc root for primitives creating while parsing
 	// input. these primitives don't start with any other references,
 	// so this is necessary to keep them from being collected.

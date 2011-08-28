@@ -18,4 +18,10 @@ struct list_hval {
 #define hval_list_head_hval(hv) ((hval *) (((list_hval *)hv)->list->head->data))
 #define hval_list_tail_hval(hv) ((hval *) (((list_hval *)hv)->list->tail->data))
 
+void mod_list_init(runtime *, native_function_spec **functions, int *function_count);
+
+NATIVE_FUNCTION(mod_list_clone);
+NATIVE_FUNCTION(mod_list_push);
+NATIVE_FUNCTION(mod_list_pop);
+
 #endif

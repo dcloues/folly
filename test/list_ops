@@ -1,0 +1,7 @@
+a: (1 2 3)
+io.print(a)
+a.push(4)
+io.print(a)
+popped: a.pop()
+io.print("popped:" popped)
+io.print("list:" a)

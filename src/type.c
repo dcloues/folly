@@ -45,6 +45,7 @@ void type_init_globals()
 	NAME = hstr_create("name");
 	VALUE = hstr_create("value");
 	LENGTH = hstr_create("length");
+	LIST = hstr_create("List");
 }
 
 void type_destroy_globals()
@@ -61,6 +62,7 @@ void type_destroy_globals()
 	hstr_release(NAME);
 	hstr_release(VALUE);
 	hstr_release(LENGTH);
+	hstr_release(LIST);
 }
 
 const char *hval_type_string(type t)
@@ -212,8 +214,9 @@ hval *hval_hash_put(hval *hv, hstr *key, hval *value, mem *m)
 hval *hval_list_create(runtime *rt)
 {
 	list_hval *hv = (list_hval *) hval_create_custom(sizeof(list_hval), list_t, rt);
+	hval *parent = hval_hash_get(rt->top_level, LIST, NULL);
+	hval_hash_put((hval *) hv, PARENT, parent, rt->mem);
 	hv->list = ll_create();
-	/*assert(hval_list_list(hv) != NULL);*/
 	return (hval *) hv;
 }
 
