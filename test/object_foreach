@@ -1,0 +1,4 @@
+map: {a: "value a" b: "value b" c: "value c" d: "value d" e: "value e"}
+map.eachpair((key value) -> (
+    io.print("key:" key "value:" value)
+)

@@ -17,6 +17,7 @@
 #include "str.h"
 #include "modules/file.h"
 #include "modules/list.h"
+#include "modules/object.h"
 
 expression *runtime_analyze(runtime *, lexer *);
 typedef void (*module_initializer)(runtime *, native_function_spec **, int *);
@@ -150,6 +151,7 @@ runtime *runtime_create()
 
 	// init built-in types early
 	init_module(r, mod_list_init);
+	init_module(r, mod_object_init);
 
 	// create a separate gc root for primitives creating while parsing
 	// input. these primitives don't start with any other references,

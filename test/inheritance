@@ -1,18 +1,18 @@
 counter: {
     a: 0
-    run: fn({by: 1} `(
+    run: (by: 1) -> ( 
         self.a: +(self.a by)
         self.a
-    ))
+    )
 }
 
 inst:  counter.clone()
 inst2: counter.clone()
 inst3: counter.clone()
-io.print(inst.run{by: 1})
-io.print(inst.run{by: 5})
-inst2.run{by: 6}
-inst2.run{by: 4}
+io.print(inst.run(1))
+io.print(inst.run(5))
+inst2.run(by: 6)
+inst2.run(by: 4)
 io.print(inst.a)
 io.print(inst2.a)
 io.print(inst3.a)
