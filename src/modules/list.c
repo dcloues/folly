@@ -3,6 +3,8 @@
 
 native_function_spec list_module_functions[] = {
 	{ "List.clone", mod_list_clone },
+	{ "List.first", mod_list_first },
+	{ "List.last", mod_list_last },
 	{ "List.pop", mod_list_pop },
 	{ "List.push", mod_list_push },
 	{ "List.foreach", mod_list_foreach }
@@ -63,5 +65,23 @@ NATIVE_FUNCTION(mod_list_foreach)
 	}
 
 	return hval_boolean_create(true, CURRENT_RUNTIME);
+}
+
+NATIVE_FUNCTION(mod_list_first)
+{
+	if (hval_list_size(this) == 0) {
+		return NULL;
+	}
+	
+	return hval_list_head_hval(this);
+}
+
+NATIVE_FUNCTION(mod_list_last)
+{
+	if (hval_list_size(this) == 0) {
+		return NULL;
+	}
+
+	return hval_list_tail_hval(this);
 }
 

@@ -12,3 +12,7 @@ func: (in) -> (
 a.foreach(func)
 io.print("without intermediate:")
 a.foreach(io.print)
+
+io.print("--------------------")
+io.print("first" a.first())
+io.print("last" a.last())

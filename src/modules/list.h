@@ -24,5 +24,7 @@ NATIVE_FUNCTION(mod_list_clone);
 NATIVE_FUNCTION(mod_list_push);
 NATIVE_FUNCTION(mod_list_pop);
 NATIVE_FUNCTION(mod_list_foreach);
+NATIVE_FUNCTION(mod_list_first);
+NATIVE_FUNCTION(mod_list_last);
 
 #endif
