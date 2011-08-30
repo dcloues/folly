@@ -26,5 +26,6 @@ NATIVE_FUNCTION(mod_list_pop);
 NATIVE_FUNCTION(mod_list_foreach);
 NATIVE_FUNCTION(mod_list_first);
 NATIVE_FUNCTION(mod_list_last);
+NATIVE_FUNCTION(mod_list_filter);
 
 #endif

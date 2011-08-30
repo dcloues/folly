@@ -7,7 +7,8 @@ native_function_spec list_module_functions[] = {
 	{ "List.last", mod_list_last },
 	{ "List.pop", mod_list_pop },
 	{ "List.push", mod_list_push },
-	{ "List.foreach", mod_list_foreach }
+	{ "List.foreach", mod_list_foreach },
+	{ "List.filter", mod_list_filter }
 };
 
 void mod_list_init(runtime *rt, native_function_spec **functions, int *function_count)
@@ -85,3 +86,29 @@ NATIVE_FUNCTION(mod_list_last)
 	return hval_list_tail_hval(this);
 }
 
+NATIVE_FUNCTION(mod_list_filter)
+{
+	if (hval_list_size(args) == 0 || hval_list_size(this) == 0) {
+		return hval_list_create(CURRENT_RUNTIME);
+	}
+
+	hval *func = runtime_get_arg_value(hval_list_head(args));
+	list_hval *filter_args = (list_hval *) hval_list_create(CURRENT_RUNTIME);
+	hval *argwrap = hval_hash_create(CURRENT_RUNTIME);
+	hval_list_insert_head(filter_args, argwrap);
+	hval *prepared_args = NULL;
+	list_hval *filtered = (list_hval *) hval_list_create(CURRENT_RUNTIME);
+	LL_FOREACH(((list_hval *)this)->list, node) {
+		hval *this_item = (hval *) node->data;
+		hval_hash_put(argwrap, VALUE, this_item, NULL);
+		prepared_args = runtime_build_function_arguments(CURRENT_RUNTIME, func, filter_args);
+		hval *value = runtime_call_function(CURRENT_RUNTIME, func, prepared_args, CURRENT_RUNTIME->top_level);
+		if (value != NULL && hval_is_true(value)) {
+			hval_list_insert_tail(filtered, this_item);
+		}
+		hval_release(prepared_args, CURRENT_RUNTIME->mem);
+		prepared_args = NULL;
+	}
+
+	return (hval *) filtered;
+}
