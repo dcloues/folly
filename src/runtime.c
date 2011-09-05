@@ -367,10 +367,11 @@ expression *runtime_analyze(runtime *rt, lexer *lexer)
 		expr = read_complete_expression(lexer);
 		if (expr == NULL)
 		{
-			runtime_error("read_complete_expression returned null\n");
-			exit(1);
+			/*runtime_error("read_complete_expression returned null\n");*/
+			/*exit(1);*/
+		} else {
+			ll_insert_tail(expr_list->operation.expr_list, expr);
 		}
-		ll_insert_tail(expr_list->operation.expr_list, expr);
 	}
 
 	return expr_list;
@@ -379,8 +380,23 @@ expression *runtime_analyze(runtime *rt, lexer *lexer)
 expression *read_complete_expression(lexer *lexer)
 {
 	expression *expr = NULL;
-	token_type tt = lexer->current->type;
+	/*token_type tt = lexer->current->type;*/
+	/*while (tt == sequence_break) {*/
+		/*lexer_get_next_token(lexer);*/
+
+		/*tt = lexer->current->type;*/
+	/*}*/
+
+	while (lexer->current && lexer->current->type == sequence_break) {
+		lexer_get_next_token(lexer);
+	}
+
+	if (!lexer->current) {
+		return NULL;
+	}
+
 	token *next;
+	token_type tt = lexer->current->type;
 
 	switch (tt)
 	{
@@ -410,6 +426,8 @@ expression *read_complete_expression(lexer *lexer)
 			runtime_error("unhandled token type: %s\n", token_type_string(tt));
 			break;
 	}
+
+	/*fprintf(stderr, "read_complete_expression: %d\n", expr->type);*/
 
 	return expr;
 }
@@ -548,7 +566,9 @@ expression *read_list(lexer *lexer)
 		/*fprintf(stderr, " read_list got token: %s\n", token_type_string(t->type));*/
 		expr = read_complete_expression(lexer);
 		ll_insert_tail(list->operation.list_literal, expr);
-		t = lexer_get_next_token(lexer);
+		do {
+			t = lexer_get_next_token(lexer);
+		} while (t && t->type == sequence_break);
 	}
 
 	return list;
@@ -571,7 +591,9 @@ static expression *read_hash(lexer *lexer)
 		lexer_get_next_token(lexer);
 		expression *value = read_complete_expression(lexer);
 		hash_put(hash_lit->operation.hash_literal, key, value);
-		t = lexer_get_next_token(lexer);
+		do {
+			t = lexer_get_next_token(lexer);
+		} while (t && t->type == sequence_break);
 	}
 
 	return hash_lit;
@@ -1166,7 +1188,8 @@ static NATIVE_FUNCTION(native_cond)
 		/*fprintf(stderr, " test_node: %p %p; cond_hval: %p\n", test_node, test_node->data, cond_hval);*/
 		linked_list *cond_pair = cond_hval->list;
 
-		hval *test = undefer(CURRENT_RUNTIME, hval_list_head_hval(cond_pair));
+		/*hval *test = undefer(CURRENT_RUNTIME, hval_list_head_hval(cond_pair));*/
+		hval *test = undefer(CURRENT_RUNTIME, hval_list_head_hval(cond_hval));
 
 		if (hval_is_true(test)) {
 			return cond_pair->head != cond_pair->tail ? undefer(CURRENT_RUNTIME, (hval *) cond_pair->tail->data) : test;

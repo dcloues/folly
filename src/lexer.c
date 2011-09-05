@@ -26,6 +26,7 @@ token *get_token_hash_end(lexer_input *li, buffer *buf);
 token *get_token_delim(lexer_input *li, buffer *buf);
 token *get_token_quote(lexer_input *li, buffer *buf);
 token *get_token_dereference(lexer_input *li, buffer *buf);
+token *get_token_sequence_break(lexer_input *li, buffer *buf);
 
 bool is_numeric(const char c, buffer *buffer);
 bool is_string_delim(const char c, buffer *buffer);
@@ -40,6 +41,7 @@ bool is_hash_end(const char c, buffer *buffer);
 bool is_delim(const char c, buffer *buffer);
 bool is_quote(const char c, buffer *buffer);
 bool is_dereference(const char c, buffer *buffer);
+bool is_break(const char c, buffer *buffer);
 
 static rule rules[] = {
 	{is_whitespace},
@@ -53,7 +55,8 @@ static rule rules[] = {
 	{is_hash_end, get_token_hash_end},
 	{is_delim, get_token_delim},
 	{is_quote, get_token_quote},
-	{is_dereference, get_token_dereference}
+	{is_dereference, get_token_dereference},
+	{is_break, get_token_sequence_break}
 };
 
 token *token_create(token_type type)
@@ -113,6 +116,8 @@ const char* token_type_string(token_type type)
 			return "delim";
 		case fn_declaration:
 			return "->";
+		case sequence_break:
+			return "seq_break";
 		default:
 			return "[unknown]";
 	}
@@ -194,6 +199,10 @@ token* get_next_token(lexer_input *li)
 
 			return token;
 		}
+		/*} else {*/
+			/*token = token_create(r->simple_type);*/
+			/*return token;*/
+		/*}*/
 	}
 
 	return NULL;
@@ -278,6 +287,11 @@ token *get_token_dereference(lexer_input *li, buffer *buf)
 	return token_create(dereference);
 }
 
+token *get_token_sequence_break(lexer_input *li, buffer *buf)
+{
+	return token_create(sequence_break);
+}
+
 void read_matching(lexer_input *li, buffer *buf, bool (*matcher)(char, buffer*))
 {
 	while (true) {
@@ -318,7 +332,7 @@ bool is_string_incomplete(const char c, buffer *buf)
 
 bool is_whitespace(const char c, buffer *buf)
 {
-	static char ws[] = {' ', '\t', '\n', '\r'};
+	static char ws[] = {' ', '\t'};
 	int i = sizeof(ws);
 	while (i--) {
 		if (c == ws[i]) {
@@ -326,6 +340,11 @@ bool is_whitespace(const char c, buffer *buf)
 		}
 	}
 	return false;
+}
+
+bool is_break(const char c, buffer *buf)
+{
+	return c == '\n';
 }
 
 inline bool is_identifier(const char c, buffer *buf)
@@ -338,7 +357,8 @@ inline bool is_identifier(const char c, buffer *buf)
 		&& !is_hash_end(c, buf)
 		&& !is_delim(c, buf)
 		&& !is_quote(c, buf)
-		&& !is_dereference(c, buf);
+		&& !is_dereference(c, buf)
+		&& !is_whitespace(c, buf);
 }
 
 inline bool is_assignment(const char c, buffer *buf)
@@ -418,7 +438,7 @@ token *lexer_get_next_token(lexer *l)
 	}
 
 	l->current = t;
-	/*fprintf(stderr, "token: %s\n", t ? token_type_string(t->type) : "NULL");*/
+	/*fprintf(stderr, "next token: %s\n", t ? token_type_string(t->type) : "NULL");*/
 	return t;
 }
 
