@@ -380,13 +380,6 @@ expression *runtime_analyze(runtime *rt, lexer *lexer)
 expression *read_complete_expression(lexer *lexer)
 {
 	expression *expr = NULL;
-	/*token_type tt = lexer->current->type;*/
-	/*while (tt == sequence_break) {*/
-		/*lexer_get_next_token(lexer);*/
-
-		/*tt = lexer->current->type;*/
-	/*}*/
-
 	while (lexer->current && lexer->current->type == sequence_break) {
 		lexer_get_next_token(lexer);
 	}
@@ -426,8 +419,6 @@ expression *read_complete_expression(lexer *lexer)
 			runtime_error("unhandled token type: %s\n", token_type_string(tt));
 			break;
 	}
-
-	/*fprintf(stderr, "read_complete_expression: %d\n", expr->type);*/
 
 	return expr;
 }

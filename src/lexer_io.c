@@ -72,7 +72,7 @@ lexer_readline_input_getc(lexer_input *input)
 {
 	lexer_readline_input *lri = (lexer_readline_input *) input;
 
-	if (lri->buf == NULL || lri->index >= lri->buf_size) {
+	if (lri->buf == NULL || lri->index > lri->buf_size) {
 		free(lri->buf);
 		lri->buf = NULL;
 		lri->buf_size = 0;
@@ -90,6 +90,9 @@ lexer_readline_input_getc(lexer_input *input)
 				lri->buf_size = strlen(line);
 			}
 		} while (line && lri->buf == NULL);
+	} else if (lri->index == lri->buf_size) {
+		++lri->index;
+		return (int) '\n';
 	}
 
 	int ch = EOF;
