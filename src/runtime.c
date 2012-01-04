@@ -21,7 +21,7 @@
 
 expression *runtime_analyze(runtime *, lexer *);
 typedef void (*module_initializer)(runtime *, native_function_spec **, int *);
-static void expect_token(token *t, type token_type);
+static void expect_token(token *t, token_type token_type);
 static void register_top_level(runtime *);
 static void register_builtin(runtime *, hval *, char *, hval *, bool);
 static void register_builtin_r(runtime *, hval *, char *, hval *);
@@ -966,7 +966,7 @@ static hval *eval_expr_deferred(runtime *rt, expression *deferred, hval *context
 	/*return t;*/
 /*}*/
 
-static void expect_token(token *t, type token_type)
+static void expect_token(token *t, token_type token_type)
 {
 	if (!t || token_type != t->type)
 	{
