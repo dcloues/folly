@@ -751,10 +751,6 @@ static hval *eval_prop_ref(runtime *rt, prop_ref *ref, hval *context)
 		runtime_error("warning: attempted to access undefined property %s of %p\n", ref->name->str, site);
 	}
 
-	if (site != context)
-	{
-		hval_release(site, rt->mem);
-	}
 	return val;
 }
 
@@ -769,11 +765,21 @@ static hval *eval_prop_set(runtime *rt, prop_set *set, hval *context)
 	}
 
 	hval *value = runtime_evaluate_expression(rt, set->value, context);
-	hval_hash_put(site, set->ref->name, value, rt->mem);
-	if (site != context)
-	{
-		hval_release(site, rt->mem);
+	bool found = false;
+	hval *assign_site = site;
+	while (assign_site != NULL) {
+		if (hval_hash_get_direct(assign_site, set->ref->name, rt) != NULL) {
+			break;
+		} else {
+			assign_site = hval_hash_get_direct(assign_site, PARENT, rt);
+		}
 	}
+
+	if (assign_site == NULL) {
+		assign_site = site;
+	}
+
+	hval_hash_put(assign_site, set->ref->name, value, rt->mem);
 
 	mem_remove_gc_root(rt->mem, site);
 	return value;
@@ -790,7 +796,6 @@ static hval *get_prop_ref_site(runtime *rt, prop_ref *ref, hval *context)
 		return context;
 	}
 }
-
 
 static hval *eval_expr_invocation(runtime *rt, invocation *inv, hval *context)
 {

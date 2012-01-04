@@ -172,14 +172,16 @@ hval *hval_hash_get(hval *hv, hstr *key, runtime *rt)
 		return NULL;
 	}
 
-	hash *h = hv->members;
-	hval *val = hash_get(h, key);
+	/*hash *h = hv->members;*/
+	/*hval *val = hash_get(h, key);*/
+	hval *val = hval_hash_get_direct(hv, key, rt);
 	if (val == NULL)
 	{
-		hval *parent = hash_get(h, PARENT);
+		hval *parent = hval_hash_get_direct(hv, PARENT, rt);
 		val = hval_hash_get(parent, key, rt);
 
 		hval *self = hval_get_self(val);
+		// TODO This will probably cause a bug at some point
 		if (rt && val && hval_is_callable(val) && (self == NULL || (self == parent && self != rt->top_level))) {
 			val = hval_clone(val, rt);
 			hval_bind_function(val, hv, rt->mem);
@@ -189,6 +191,15 @@ hval *hval_hash_get(hval *hv, hstr *key, runtime *rt)
 	}
 
 	return val;
+}
+
+hval *hval_hash_get_direct(hval *hv, hstr *key, runtime *rt)
+{
+	if (hv == NULL) {
+		return NULL;
+	}
+
+	return hash_get(hv->members, key);
 }
 
 hval *hval_hash_put(hval *hv, hstr *key, hval *value, mem *m)
