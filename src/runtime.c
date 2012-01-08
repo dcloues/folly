@@ -639,9 +639,11 @@ static list_hval *eval_expr_function_args(runtime *rt, expression *expr, bool fo
 	expression *arg_expr = NULL;
 	hval *arg = NULL;
 	hval *value = NULL;
+	hval *name = NULL;
 	prop_set *set = NULL;
 	int i = 0;
 	while (arg_node) {
+		name = value = NULL;
 		arg_expr = (expression *) arg_node->data;
 		arg = hval_hash_create(rt);
 		/*fprintf(stderr, "  created arg %d: %p\n", i, arg);*/
@@ -649,23 +651,30 @@ static list_hval *eval_expr_function_args(runtime *rt, expression *expr, bool fo
 		switch (arg_expr->type) {
 		case expr_prop_ref_t:
 			if (for_invocation) {
-				hval_hash_put(arg, VALUE, runtime_evaluate_expression(rt, arg_expr, context), rt->mem);
+				value = runtime_evaluate_expression(rt, arg_expr, context);
 			} else {
-				hval_hash_put(arg, NAME, hval_string_create(arg_expr->operation.prop_ref->name, rt), rt->mem);
+				name = hval_string_create(arg_expr->operation.prop_ref->name, rt);
 			}
 			break;
 		case expr_prop_set_t:
 			set = arg_expr->operation.prop_set;
-			hval_hash_put(arg, NAME, hval_string_create(set->ref->name, rt), rt->mem);
-			hval_hash_put(arg, VALUE, runtime_evaluate_expression(rt, set->value, context), rt->mem);
+			name = hval_string_create(set->ref->name, rt);
+			value = runtime_evaluate_expression(rt, set->value, context);
 			break;
 		case expr_primitive_t:
-			hval_hash_put(arg, VALUE, arg_expr->operation.primitive, rt->mem);
+			value = arg_expr->operation.primitive;
 			break;
 		default:
 			value = runtime_evaluate_expression(rt, arg_expr, context);
+			break;
+		}
+
+		if (name != NULL) {
+			hval_hash_put(arg, NAME, name, rt->mem);
+		}
+
+		if (value != NULL) {
 			hval_hash_put(arg, VALUE, value, rt->mem);
-			value = NULL;
 		}
 
 		arg_node = arg_node->next;
