@@ -5,6 +5,7 @@ while(`<(i 5) `(
 ))
 
 i: 0
-while(`(<(i: +(i 1) 5)) `(
+incr: () -> (i: +(i 1))
+while(`<(incr() 5) `(
     io.print("i:" i)
 ))
